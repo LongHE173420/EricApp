@@ -69,17 +69,19 @@ export class FriendApiService {
     ]);
 
     return ApiClient.createSignedClient(headers, agent).get(`${this.urlBase}/api/friend/list${query}`, {
+      data: {},
       __signatureExcludeQuery: signatureExcludeQuery,
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },
       transformResponse,
-    });
+    } as any);
   }
 
   static async getMyFriends(accessToken: string, headers = buildHeaders(), agent?: any) {
     return ApiClient.createSignedClient(headers, agent).get(`${this.urlBase}/api/friend/myFriends`, {
+      data: {},
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },
       transformResponse,
-    });
+    } as any);
   }
 
   static async sendFriendRequest(
@@ -134,10 +136,11 @@ export class FriendApiService {
     ]);
 
     return ApiClient.createSignedClient(headers, agent).get(`${this.urlBase}/api/friend/requests/sent${query}`, {
+      data: {},
       __signatureExcludeQuery: signatureExcludeQuery,
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },
       transformResponse,
-    });
+    } as any);
   }
 
   static async deleteFriend(
@@ -187,6 +190,7 @@ export class FriendApiService {
     ]);
 
     return ApiClient.createSignedClient(headers, agent).get(`${this.urlBase}/api/friend/requests/received${query}`, {
+      data: {},
       __signatureExcludeQuery: signatureExcludeQuery,
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },
       transformResponse: [
@@ -205,6 +209,6 @@ export class FriendApiService {
           return data;
         },
       ],
-    });
+    } as any);
   }
 }

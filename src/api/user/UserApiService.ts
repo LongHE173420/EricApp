@@ -19,8 +19,11 @@ export class UserApiService {
   }
 
   static async getProfileById(accessToken: string, baseURL: string, id: string, headers = buildHeaders()) {
-    return ApiClient.createSignedClient(headers).get(`${baseURL}/api/user/id/${id}`, {
+    return ApiClient.createSignedClient(headers).request({
+      method: 'GET',
+      url: `${baseURL}/api/user/id/${id}`,
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },
+      data: {},
       transformResponse,
     });
   }
@@ -35,6 +38,17 @@ export class UserApiService {
   static async updateProfile(accessToken: string, baseURL: string, profileData: any, headers = buildHeaders()) {
     return ApiClient.createSignedClient(headers).post(`${baseURL}/api/user/update-profile`, profileData, {
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },
+    });
+  }
+
+  static async searchUsers(accessToken: string, baseURL: string, keyword: string, limit = 10, offset = 0, headers = buildHeaders()) {
+    return ApiClient.createSignedClient(headers).request({
+      method: 'GET',
+      url: `${baseURL}/api/user/search`,
+      params: { keyword, limit, offset },
+      headers: { ...headers, Authorization: `Bearer ${accessToken}` },
+      data: {},
+      transformResponse,
     });
   }
 }

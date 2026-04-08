@@ -109,7 +109,11 @@ export function applyStandardInterceptors(axiosInstance: AxiosInstance | any, de
                 body = "";
             } else if (contentType.includes("application/json")) {
                 if (config.data !== undefined && config.data !== null) {
-                    body = typeof config.data === "string" ? config.data : JSON.stringify(config.data);
+                    if (method === "GET" && typeof config.data === "object" && Object.keys(config.data).length === 0) {
+                        body = "";
+                    } else {
+                        body = typeof config.data === "string" ? config.data : JSON.stringify(config.data);
+                    }
                 }
             } else if (config.data && typeof config.data === "object") {
 
@@ -136,7 +140,9 @@ export function applyStandardInterceptors(axiosInstance: AxiosInstance | any, de
             }
 
             if (path.includes("/auth/") || path.includes("/password/")) {
-                token = "";
+                if (!path.includes("/refresh")) {
+                    token = "";
+                }
             }
 
             const rawData = method + "|" + signaturePath + "|" + timestamp + "|" + body;

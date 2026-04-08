@@ -1,4 +1,7 @@
 import { AuthService, StoredSession, getTokenClientType, isAccessExpired, isRefreshExpired } from '../service/auth/AuthService';
+import { buildHeaders } from '../utils/headers';
+import { UserApiService } from '../api/user/UserApiService';
+import { FeedApiService } from '../api/feed/FeedApiService';
 import { FeedService } from '../service/feed/FeedService';
 import { FriendService } from '../service/friend/FriendService';
 import { MissionService } from '../service/missions/MissionService';
@@ -148,6 +151,35 @@ export class EricAppWorker {
     return s;
   }
 
+  async sendFriendRequest(session: StoredSession, receiverId: string) {
+    const s = await this.ensureValidSession(session);
+    await this.friend.sendRequest(s.accessToken, receiverId);
+    return s;
+  }
+
+  async cancelFriendRequest(session: StoredSession, receiverId: string) {
+    const s = await this.ensureValidSession(session);
+    await this.friend.cancelRequest(s.accessToken, receiverId);
+    return s;
+  }
+
+  async searchUsers(session: StoredSession, keyword: string) {
+    const s = await this.ensureValidSession(session);
+    const clientType = getTokenClientType(s.accessToken);
+    const headers = buildHeaders(s.deviceId, s.userAgent, { clientType });
+    const res = await UserApiService.searchUsers(s.accessToken, s.baseUrl, keyword, 10, 0, headers);
+    return res?.data?.data || res?.data || [];
+  }
+
+  async getProfileById(session: StoredSession, userId: string) {
+    const s = await this.ensureValidSession(session);
+    const clientType = getTokenClientType(s.accessToken);
+    const headers = buildHeaders(s.deviceId, s.userAgent, { clientType });
+    const res = await UserApiService.getProfileById(s.accessToken, s.baseUrl, userId, headers);
+    return res?.data?.data || res?.data;
+  }
+
+
   async rejectRequest(session: StoredSession, senderId: string) {
     const s = await this.ensureValidSession(session);
     await this.friend.rejectRequest(s.accessToken, senderId);
@@ -183,6 +215,10 @@ export class EricAppWorker {
   async claimAllEligible(session: StoredSession) {
     const s = await this.ensureValidSession(session);
     return this.mission.claimAllEligible(s.accessToken);
+  }
+
+  async resetFriendCaches() {
+    await this.friend.resetFriendCaches();
   }
 
   async logout(session: StoredSession) {

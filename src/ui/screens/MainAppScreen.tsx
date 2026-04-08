@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Image, Modal, Pressable, RefreshControl, ScrollView,
-  StyleSheet, Text, View
+  StyleSheet, Text, View, TextInput, ActivityIndicator, Alert
 } from 'react-native';
 import { createThumbnail } from 'react-native-create-thumbnail';
 import Video from 'react-native-video';
@@ -22,6 +22,7 @@ type MediaAsset = {
 };
 
 type AuthorInfo = {
+  id?: string;
   name: string;
   avatar?: string;
 };
@@ -38,6 +39,12 @@ const timeOf = (v: any): string => {
   return isNaN(d.getTime()) ? 'Now' : d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
 };
 
+const stripAppId = (text?: string) => {
+  if (!text) return '';
+  // Removes common EricApp numeric suffix patterns like .1774698985004203288 
+  return text.split('.')[0].trim();
+};
+
 const pickFirst = (...values: Array<any>): string | undefined => {
   for (const value of values) {
     if (typeof value === 'string' && value.trim()) return value.trim();
@@ -46,7 +53,7 @@ const pickFirst = (...values: Array<any>): string | undefined => {
 };
 
 const friendNameOf = (item: any): string =>
-  pickFirst(
+  stripAppId(pickFirst(
     item?.fullName,
     item?.displayName,
     item?.name,
@@ -61,7 +68,7 @@ const friendNameOf = (item: any): string =>
     item?.receiver?.displayName,
     [pickFirst(item?.receiver?.firstname, item?.receiver?.firstName), pickFirst(item?.receiver?.lastname, item?.receiver?.lastName)].filter(Boolean).join(' ').trim(),
     item?.receiver?.username,
-  ) || 'User';
+  ) || 'User');
 
 const friendAvatarOf = (item: any): string | undefined =>
   pickFirst(
@@ -134,12 +141,12 @@ const fullNameOf = (value: any): string | undefined => {
   if (!isObject(value)) return undefined;
 
   const direct = pickFirst(value.fullName, value.authorName, value.displayName, value.name);
-  if (direct) return direct;
+  if (direct) return stripAppId(direct);
 
   const firstName = pickFirst(value.firstName, value.firstname);
   const lastName = pickFirst(value.lastName, value.lastname);
   const joined = [firstName, lastName].filter(Boolean).join(' ').trim();
-  return joined || pickFirst(value.userName, value.username);
+  return stripAppId(joined || pickFirst(value.userName, value.username));
 };
 
 const resolveAuthor = (item: any, currentUser?: any): AuthorInfo => {
@@ -158,13 +165,14 @@ const resolveAuthor = (item: any, currentUser?: any): AuthorInfo => {
       : undefined;
 
   return {
+    id: pickFirst(String(item?.authorId || ''), String(currentUser?.id || ''), String(owner?.id || ''), String(item?.userId || '')),
     name: pickFirst(
       fullNameOf(owner),
       pickFirst(item?.authorName),
       fullNameOf(item),
       currentUserName,
-      'Nguoi dung Eric',
-    ) || 'Nguoi dung Eric',
+      'Người dùng Eric',
+    ) || 'Người dùng Eric',
     avatar: pickFirst(
       owner?.avatar,
       item?.authorAvatar,
@@ -393,20 +401,20 @@ function MediaPreview({
     const videoUrl = asset.url;
 
     (async () => {
-        for (const timeStamp of THUMBNAIL_TIMESTAMPS) {
-          try {
-            const result = await createThumbnail({
-              url: videoUrl,
-              timeStamp,
-              onlySyncedFrames: false,
-            });
-            if (__DEV__) console.log('[Thumbnail] generated', { url: videoUrl, timeStamp, path: result.path });
-            GENERATED_THUMBNAIL_CACHE.set(videoUrl, result.path);
-            if (active) setThumbnailUri(result.path);
-            return;
-          } catch (error) {
-            if (__DEV__) console.log('[Thumbnail] retry', { url: videoUrl, timeStamp, error });
-          }
+      for (const timeStamp of THUMBNAIL_TIMESTAMPS) {
+        try {
+          const result = await createThumbnail({
+            url: videoUrl,
+            timeStamp,
+            onlySyncedFrames: false,
+          });
+          if (__DEV__) console.log('[Thumbnail] generated', { url: videoUrl, timeStamp, path: result.path });
+          GENERATED_THUMBNAIL_CACHE.set(videoUrl, result.path);
+          if (active) setThumbnailUri(result.path);
+          return;
+        } catch (error) {
+          if (__DEV__) console.log('[Thumbnail] retry', { url: videoUrl, timeStamp, error });
+        }
       }
 
       console.log('[Thumbnail] error', { url: videoUrl, error: 'Failed at all timestamps' });
@@ -487,6 +495,107 @@ export function MainAppScreen({ rootController, rootState }: MainAppScreenProps)
   const { session, data, tab, refreshing } = rootState;
   const [activeVideo, setActiveVideo] = useState<MediaAsset | null>(null);
 
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [viewingProfileId, setViewingProfileId] = useState<string | null>(null);
+  const [viewingProfileData, setViewingProfileData] = useState<any>(null);
+
+  const doSearch = async () => {
+    if (!searchKeyword.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    setIsSearching(true);
+    try {
+      const results = await rootController.searchUsers(searchKeyword.trim());
+      setSearchResults(results || []);
+    } catch {
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const openProfileWall = async (userId: string) => {
+    setViewingProfileId(String(userId));
+    setViewingProfileData(null);
+    try {
+      const p = await rootController.getProfileById(String(userId));
+      if (__DEV__) console.log('[openProfileWall] Data:', JSON.stringify(p).substring(0, 1000));
+      setViewingProfileData(p || { fullName: 'Người dùng này chưa có thông tin', userName: '' });
+    } catch (e: any) {
+      console.log('[openProfileWall] Error:', e?.response?.status, e?.response?.data || e?.message);
+
+      const status = e?.response?.status || 'Unknown';
+      const msg = e?.response?.data?.message || e?.message || JSON.stringify(e?.response?.data);
+      if (__DEV__) {
+        Alert.alert(`Test Lỗi API (User ID: ${userId})`, `Status: ${status}\nMessage: ${msg}`);
+      }
+
+      setViewingProfileData({ fullName: 'Lỗi tải trang cá nhân', userName: 'Không thể truy xuất dữ liệu', isError: true });
+    }
+  };
+
+  const closeProfileWall = () => {
+    setViewingProfileId(null);
+    setViewingProfileData(null);
+  };
+
+  const renderProfileActions = () => {
+    if (!viewingProfileId || viewingProfileData?.isError) return null;
+
+    const myId = String(data.me?.id || data.me?.userId || data.me?.accountId || '');
+    if (myId === viewingProfileId) {
+      return <Text style={[s.infoText, { marginTop: 20 }]}>Đây là trang cá nhân của bạn</Text>;
+    }
+
+    const isFriend = data.friends.some((f: any) => String(f?.id || f?.friendId || f?.userId || f?.friend?.id) === viewingProfileId);
+    const isSent = data.sentFriendRequests.some((r: any) => String(r?.receiverId || r?.receiver?.id || r?.id) === viewingProfileId);
+    const isReceived = data.friendRequests.some((r: any) => String(r?.senderId || r?.sender?.id || r?.id) === viewingProfileId);
+
+    if (__DEV__) {
+      console.log(`[ProfileWall:Status] checking ${viewingProfileId}: friend=${isFriend}, sent=${isSent}, rcv=${isReceived}`);
+      if (isSent === false && data.sentFriendRequests.length > 0) {
+        console.log('[ProfileWall:SentList] IDs found:', data.sentFriendRequests.map((r: any) => r?.receiverId || r?.id));
+      }
+    }
+
+    if (isFriend) {
+      return (
+        <>
+          <Pressable onPress={() => rootController.deleteFriend(viewingProfileId)} style={[s.btn, { backgroundColor: '#e2e8f0', marginTop: 20, paddingHorizontal: 30 }]}>
+            <Text style={[s.btnText, { color: '#0f172a' }]}>Hủy kết bạn</Text>
+          </Pressable>
+        </>
+      );
+    }
+
+    if (isSent) {
+      return (
+        <Pressable onPress={() => rootController.cancelFriendRequest(viewingProfileId)} style={[s.btn, { backgroundColor: '#e2e8f0', marginTop: 20, paddingHorizontal: 30 }]}>
+          <Text style={[s.btnText, { color: '#0f172a' }]}>Hủy lời mời</Text>
+        </Pressable>
+      );
+    }
+
+    if (isReceived) {
+      return (
+        <Pressable onPress={() => rootController.acceptRequest(viewingProfileId)} style={[s.btn, { marginTop: 20, paddingHorizontal: 30 }]}>
+          <Text style={s.btnText}>Chấp nhận kết bạn</Text>
+        </Pressable>
+      );
+    }
+
+    return (
+      <>
+        <Pressable onPress={() => rootController.sendFriendRequest(viewingProfileId)} style={[s.btn, { marginTop: 20, paddingHorizontal: 30 }]}>
+          <Text style={s.btnText}>Thêm kết bạn</Text>
+        </Pressable>
+      </>
+    );
+  };
+
   if (!session) return null;
 
   return (
@@ -503,194 +612,264 @@ export function MainAppScreen({ rootController, rootState }: MainAppScreenProps)
 
       <ScrollView
         style={{ flex: 1 }}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => rootController.setRefreshing(true)}
-            tintColor="#3b82f6"
-          />
+          !viewingProfileId ? (
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => rootController.setRefreshing(true)}
+              tintColor="#3b82f6"
+            />
+          ) : undefined
         }
       >
-        {tab === 'home' && (
-          <View style={{ padding: 12 }}>
-            {data.surf.length > 0 ? (
-              <View style={s.storySection}>
-                <View style={s.storyHeader}>
-                  <Text style={s.sectionTitle}>Stories</Text>
-                  <Text style={s.storyHint}>Cham de xem surf</Text>
-                </View>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={s.storyRow}
-                >
-                  {data.surf.map((p: any, index: number) => {
-                    const author = resolveAuthor(p, data.me);
-                    const media = mediaOf(p);
-                    const bodyText = textOf(p.description || p.content);
-                    const firstMedia = media[0];
+        {viewingProfileId ? (
+          <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
+            <View style={{ padding: 12, borderBottomWidth: 1, borderColor: '#e2e8f0', flexDirection: 'row', alignItems: 'center' }}>
+              <Pressable onPress={closeProfileWall} style={{ marginRight: 15 }}><Text style={{ color: '#3b82f6', fontWeight: 'bold' }}>{'< Quay lại'}</Text></Pressable>
+              <Text style={{ fontWeight: 'bold', fontSize: 16 }}>Tường cá nhân</Text>
+            </View>
+            {viewingProfileData ? (
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                 <Avatar uri={viewingProfileData?.avatar} label={stripAppId(viewingProfileData?.fullName || viewingProfileData?.userName) || '?'} size={96} />
+                 <Text style={[s.pName, { marginTop: 16, fontSize: 20 }]}>
+                   {stripAppId(viewingProfileData?.fullName || viewingProfileData?.userName) || 'Người dùng Bí ẩn'}
+                 </Text>
+                 <Text style={s.infoText}>
+                   {viewingProfileData?.userName ? `@${stripAppId(viewingProfileData.userName)}` : ''}
+                 </Text>
 
-                    if (!firstMedia) return null;
-
-                    return (
-                      <MediaPreview
-                        key={`story-${String(p.id ?? p.surfId ?? index)}`}
-                        asset={firstMedia}
-                        variant="story"
-                        storyAuthor={author}
-                        storyTitle={bodyText || author.name}
-                        onPress={asset => {
-                          if ((asset.type === 'VIDEO' || isVideoUrl(asset.url)) && asset.url) {
-                            if (__DEV__) console.log('[VideoPress:story]', asset);
-                            setActiveVideo(asset);
-                          }
-                        }}
-                      />
-                    );
-                  })}
-                </ScrollView>
+                {renderProfileActions()}
               </View>
-            ) : null}
+            ) : (
+              <View style={{ padding: 40, alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#3b82f6" />
+              </View>
+            )}
+          </View>
+        ) : (
+          <>
+            {tab === 'home' && (
+              <View style={{ padding: 12 }}>
+                {data.surf.length > 0 ? (
+                  <View style={s.storySection}>
+                    <View style={s.storyHeader}>
+                      <Text style={s.sectionTitle}>Stories</Text>
+                      <Text style={s.storyHint}>Cham de xem surf</Text>
+                    </View>
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={s.storyRow}
+                    >
+                      {data.surf.map((p: any, index: number) => {
+                        const author = resolveAuthor(p, data.me);
+                        const media = mediaOf(p);
+                        const bodyText = textOf(p.description || p.content);
+                        const firstMedia = media[0];
 
-            {data.feed.length === 0 ? <Text style={s.empty}>Het noi dung roi...</Text> : data.feed.map((p: any, index: number) => {
-              const author = resolveAuthor(p, data.me);
-              const media = mediaOf(p);
-              const bodyText = textOf(p.content);
+                        if (!firstMedia) return null;
 
-              return (
-                <View key={String(p.id ?? p.postId ?? index)} style={s.cardPost}>
-                  <View style={s.rowBetween}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Avatar uri={author.avatar} label={author.name} size={36} />
-                      <View style={{ marginLeft: 8 }}>
-                        <Text style={s.pName}>{author.name}</Text>
-                        <Text style={s.pTime}>{timeOf(p.createdAt ?? p.modifiedAt)}</Text>
+                        return (
+                          <MediaPreview
+                            key={`story-${String(p.id ?? p.surfId ?? index)}`}
+                            asset={firstMedia}
+                            variant="story"
+                            storyAuthor={author}
+                            storyTitle={bodyText || author.name}
+                            onPress={asset => {
+                              if ((asset.type === 'VIDEO' || isVideoUrl(asset.url)) && asset.url) {
+                                if (__DEV__) console.log('[VideoPress:story]', asset);
+                                setActiveVideo(asset);
+                              }
+                            }}
+                          />
+                        );
+                      })}
+                    </ScrollView>
+                  </View>
+                ) : null}
+
+                {data.feed.length === 0 ? <Text style={s.empty}>Het noi dung roi...</Text> : data.feed.map((p: any, index: number) => {
+                  const author = resolveAuthor(p, data.me);
+                  const media = mediaOf(p);
+                  const bodyText = textOf(p.content);
+
+                  return (
+                    <View key={String(p.id ?? p.postId ?? index)} style={s.cardPost}>
+                      <View style={s.rowBetween}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Pressable onPress={() => author.id ? openProfileWall(author.id) : null}>
+                            <Avatar uri={author.avatar} label={author.name} size={36} />
+                          </Pressable>
+                          <View style={{ marginLeft: 8 }}>
+                            <Pressable onPress={() => author.id ? openProfileWall(author.id) : null}>
+                              <Text style={s.pName}>{author.name}</Text>
+                            </Pressable>
+                            <Text style={s.pTime}>{timeOf(p.createdAt ?? p.modifiedAt)}</Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      {bodyText ? <Text style={s.pBody}>{bodyText}</Text> : null}
+                      {media[0] ? (
+                        <MediaPreview
+                          asset={media[0]}
+                          extraCount={Math.max(media.length - 1, 0)}
+                          onPress={asset => {
+                            if ((asset.type === 'VIDEO' || isVideoUrl(asset.url)) && asset.url) {
+                              if (__DEV__) console.log('[VideoPress:feed]', asset);
+                              setActiveVideo(asset);
+                            }
+                          }}
+                        />
+                      ) : null}
+
+                      <View style={s.pActions}>
+                        <Pressable onPress={() => rootController.onReact(String(p.id ?? p.postId ?? ''))} style={s.pAction}>
+                          <Text style={s.pActionText}>Thich</Text>
+                        </Pressable>
                       </View>
                     </View>
-                  </View>
+                  );
+                })}
+              </View>
+            )}
 
-                  {bodyText ? <Text style={s.pBody}>{bodyText}</Text> : null}
-                  {media[0] ? (
-                    <MediaPreview
-                      asset={media[0]}
-                      extraCount={Math.max(media.length - 1, 0)}
-                      onPress={asset => {
-                        if ((asset.type === 'VIDEO' || isVideoUrl(asset.url)) && asset.url) {
-                          if (__DEV__) console.log('[VideoPress:feed]', asset);
-                          setActiveVideo(asset);
-                        }
-                      }}
-                    />
-                  ) : null}
-
-                  <View style={s.pActions}>
-                    <Pressable onPress={() => rootController.onReact(String(p.id ?? p.postId ?? ''))} style={s.pAction}>
-                      <Text style={s.pActionText}>Thich</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        )}
-
-        {tab === 'friends' && (
-          <View style={{ padding: 12 }}>
-            <Text style={s.sectionTitle}>Loi moi ket ban ({data.friendRequests.length})</Text>
-            {data.friendRequests.length === 0 ? <Text style={s.emptyInline}>Khong co loi moi moi</Text> : data.friendRequests.map((r: any, index: number) => {
-              const senderId = String(r?.senderId || r?.sender?.id || r?.id || index);
-              return (
-                <View key={`received-${senderId}`} style={[s.card, s.friendRowCard]}>
-                  <View style={s.friendIdentity}>
-                    <Avatar uri={friendAvatarOf(r)} label={friendNameOf(r)} size={34} />
-                    <View style={{ marginLeft: 10, flex: 1 }}>
-                      <Text style={s.pName}>{friendNameOf(r)}</Text>
-                      <Text style={s.pTime}>Muon ket noi voi ban</Text>
-                    </View>
-                  </View>
-                  <View style={s.friendActionRow}>
-                    <Pressable style={s.tinyBtnGhost} onPress={() => rootController.rejectRequest(senderId)}>
-                      <Text style={s.tinyBtnGhostText}>Tu choi</Text>
-                    </Pressable>
-                    <Pressable style={s.tinyBtn} onPress={() => rootController.acceptRequest(senderId)}>
-                      <Text style={s.btnText}>Dong y</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              );
-            })}
-
-            <Text style={[s.sectionTitle, { marginTop: 20 }]}>Da gui ({data.sentFriendRequests.length})</Text>
-            {data.sentFriendRequests.length === 0 ? <Text style={s.emptyInline}>Chua co loi moi da gui</Text> : data.sentFriendRequests.map((r: any, index: number) => {
-              const receiverId = String(r?.receiverId || r?.receiver?.id || r?.id || index);
-              return (
-                <View key={`sent-${receiverId}`} style={[s.card, s.friendRowCard]}>
-                  <View style={s.friendIdentity}>
-                    <Avatar uri={friendAvatarOf(r)} label={friendNameOf(r)} size={34} />
-                    <View style={{ marginLeft: 10, flex: 1 }}>
-                      <Text style={s.pName}>{friendNameOf(r)}</Text>
-                      <Text style={s.pTime}>Dang cho phan hoi</Text>
-                    </View>
-                  </View>
-                </View>
-              );
-            })}
-
-            <Text style={[s.sectionTitle, { marginTop: 20 }]}>Ban be cua toi ({data.friends.length})</Text>
-            {data.friends.length === 0 ? <Text style={s.emptyInline}>Chua co ban be nao</Text> : data.friends.map((f: any, index: number) => {
-              const friendId = String(f?.id || f?.friendId || f?.userId || f?.friend?.id || index);
-              return (
-                <View key={`friend-${friendId}`} style={[s.card, s.friendRowCard]}>
-                  <View style={s.friendIdentity}>
-                    <Avatar uri={friendAvatarOf(f)} label={friendNameOf(f)} size={36} />
-                    <View style={{ marginLeft: 10, flex: 1 }}>
-                      <Text style={s.pName}>{friendNameOf(f)}</Text>
-                      <Text style={s.pTime}>{pickFirst(f?.userName, f?.username, f?.email, 'Ban da ket noi')}</Text>
-                    </View>
-                  </View>
-                  <Pressable style={s.tinyBtnGhost} onPress={() => rootController.deleteFriend(friendId)}>
-                    <Text style={s.tinyBtnGhostText}>Xoa</Text>
+            {tab === 'friends' && (
+              <View style={{ padding: 12 }}>
+                <View style={{ flexDirection: 'row', marginBottom: 20, alignItems: 'center' }}>
+                  <TextInput
+                    style={{ flex: 1, backgroundColor: '#f1f5f9', padding: 12, borderRadius: 8, fontSize: 15 }}
+                    placeholder="Tìm kiếm bạn bè..."
+                    value={searchKeyword}
+                    onChangeText={setSearchKeyword}
+                    onSubmitEditing={doSearch}
+                    returnKeyType="search"
+                  />
+                  <Pressable style={{ marginLeft: 10, padding: 12, backgroundColor: '#3b82f6', borderRadius: 8 }} onPress={doSearch}>
+                    <Text style={{ color: 'white', fontWeight: 'bold' }}>Tìm</Text>
                   </Pressable>
                 </View>
-              );
-            })}
-          </View>
-        )}
 
-        {tab === 'alerts' && (
-          <View style={{ padding: 12 }}>
-            <Text style={s.sectionTitle}>Thong bao moi ({data.notifications.length})</Text>
-            {data.notifications.length === 0 ? <Text style={s.empty}>Chua co thong bao nao</Text> : data.notifications.map((n: any) => (
-              <View key={n.id} style={s.cardPost}>
-                <Text style={{ color: '#0f172a', fontWeight: '500' }}>{n.content || n.title || 'Thong bao moi'}</Text>
-                <Text style={s.pTime}>{timeOf(n.createdAt)}</Text>
+                {isSearching ? <ActivityIndicator size="small" color="#3b82f6" style={{ marginBottom: 20 }} /> : null}
+                {!isSearching && searchResults.length > 0 ? (
+                  <View style={{ marginBottom: 20 }}>
+                    <Text style={s.sectionTitle}>Kết quả tìm kiếm ({searchResults.length})</Text>
+                    {searchResults.map((r: any, index: number) => {
+                      const sId = String(r?.id || r?.userId || index);
+                      return (
+                        <Pressable key={`search-${sId}`} style={[s.card, s.friendRowCard]} onPress={() => openProfileWall(sId)}>
+                          <View style={s.friendIdentity}>
+                            <Avatar uri={r?.avatar} label={r?.fullName || r?.userName || '?'} size={34} />
+                            <View style={{ marginLeft: 10, flex: 1 }}>
+                              <Text style={s.pName}>{r?.fullName || r?.userName || 'Người dùng'}</Text>
+                              <Text style={s.pTime}>@{r?.userName || 'unknown'}</Text>
+                            </View>
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                ) : null}
+
+                <Text style={s.sectionTitle}>Loi moi ket ban ({data.friendRequests.length})</Text>
+                {data.friendRequests.length === 0 ? <Text style={s.emptyInline}>Khong co loi moi moi</Text> : data.friendRequests.map((r: any, index: number) => {
+                  const senderId = String(r?.senderId || r?.sender?.id || r?.id || index);
+                  return (
+                    <View key={`received-${senderId}`} style={[s.card, s.friendRowCard]}>
+                      <Pressable style={s.friendIdentity} onPress={() => openProfileWall(senderId)}>
+                        <Avatar uri={friendAvatarOf(r)} label={friendNameOf(r)} size={34} />
+                        <View style={{ marginLeft: 10, flex: 1 }}>
+                          <Text style={s.pName}>{friendNameOf(r)}</Text>
+                          <Text style={s.pTime}>Muốn kết nối với bạn</Text>
+                        </View>
+                      </Pressable>
+                      <View style={s.friendActionRow}>
+                        <Pressable style={s.tinyBtnGhost} onPress={() => rootController.rejectRequest(senderId)}>
+                          <Text style={s.tinyBtnGhostText}>Tu choi</Text>
+                        </Pressable>
+                        <Pressable style={s.tinyBtn} onPress={() => rootController.acceptRequest(senderId)}>
+                          <Text style={s.btnText}>Dong y</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  );
+                })}
+
+                <Text style={[s.sectionTitle, { marginTop: 20 }]}>Da gui ({data.sentFriendRequests.length})</Text>
+                {data.sentFriendRequests.length === 0 ? <Text style={s.emptyInline}>Chua co loi moi da gui</Text> : data.sentFriendRequests.map((r: any, index: number) => {
+                  const receiverId = String(r?.receiverId || r?.receiver?.id || r?.id || index);
+                  return (
+                    <View key={`sent-${receiverId}`} style={[s.card, s.friendRowCard]}>
+                      <Pressable style={s.friendIdentity} onPress={() => openProfileWall(receiverId)}>
+                        <Avatar uri={friendAvatarOf(r)} label={friendNameOf(r)} size={34} />
+                        <View style={{ marginLeft: 10, flex: 1 }}>
+                          <Text style={s.pName}>{friendNameOf(r)}</Text>
+                          <Text style={s.pTime}>Đang chờ phản hồi</Text>
+                        </View>
+                      </Pressable>
+                    </View>
+                  );
+                })}
+
+                <Text style={[s.sectionTitle, { marginTop: 20 }]}>Ban be cua toi ({data.friends.length})</Text>
+                {data.friends.length === 0 ? <Text style={s.emptyInline}>Chua co ban be nao</Text> : data.friends.map((f: any, index: number) => {
+                  const friendId = String(f?.id || f?.friendId || f?.userId || f?.friend?.id || index);
+                  return (
+                    <View key={`friend-${friendId}`} style={[s.card, s.friendRowCard]}>
+                      <Pressable style={s.friendIdentity} onPress={() => openProfileWall(friendId)}>
+                        <Avatar uri={friendAvatarOf(f)} label={friendNameOf(f)} size={36} />
+                        <View style={{ marginLeft: 10, flex: 1 }}>
+                          <Text style={s.pName}>{friendNameOf(f)}</Text>
+                          <Text style={s.pTime}>@{stripAppId(pickFirst(f?.userName, f?.username, f?.email) || 'username')}</Text>
+                        </View>
+                      </Pressable>
+                      <Pressable style={s.tinyBtnGhost} onPress={() => rootController.deleteFriend(friendId)}>
+                        <Text style={s.tinyBtnGhostText}>Xoa</Text>
+                      </Pressable>
+                    </View>
+                  );
+                })}
               </View>
-            ))}
-          </View>
-        )}
+            )}
 
-        {tab === 'profile' && (
-          <View style={{ padding: 20 }}>
-            <View style={[s.cardProfile, { alignItems: 'center', paddingVertical: 40 }]}>
-              <Avatar uri={data.me?.avatar} label={data.me?.fullName || '?'} size={96} />
-              <Text style={[s.pName, { marginTop: 16, fontSize: 20 }]}>{data.me?.fullName || 'Nguoi dung Eric'}</Text>
-              <Text style={s.infoText}>{data.me?.userName}</Text>
-              <View style={s.balanceBox}>
-                <Text style={s.balanceTxt}>{data.balance?.balance || 0}</Text>
-                <Text style={{ color: '#3b82f6', fontSize: 13, fontWeight: 'bold' }}>DIEM TICH LUY</Text>
+            {tab === 'alerts' && (
+              <View style={{ padding: 12 }}>
+                <Text style={s.sectionTitle}>Thong bao moi ({data.notifications.length})</Text>
+                {data.notifications.length === 0 ? <Text style={s.empty}>Chua co thong bao nao</Text> : data.notifications.map((n: any) => (
+                  <View key={n.id} style={s.cardPost}>
+                    <Text style={{ color: '#0f172a', fontWeight: '500' }}>{n.content || n.title || 'Thong bao moi'}</Text>
+                    <Text style={s.pTime}>{timeOf(n.createdAt)}</Text>
+                  </View>
+                ))}
               </View>
-            </View>
-            <Pressable onPress={() => rootController.claimAll()} style={[s.btn, { marginTop: 20 }]}>
-              <Text style={s.btnText}>Nhan thuong nhiem vu</Text>
-            </Pressable>
-            <Pressable onPress={() => rootController.onLogout()} style={[s.btn, { backgroundColor: '#fee2e2', marginTop: 15, borderWidth: 1, borderColor: '#fecaca' }]}>
-              <Text style={[s.btnText, { color: '#dc2626' }]}>Dang xuat khoi thiet bi</Text>
-            </Pressable>
-          </View>
-        )}
+            )}
 
-        {tab === 'compose' && (
-          <View style={s.center}><Text style={s.infoText}>Tinh nang dang bai dang phat trien</Text></View>
+            {tab === 'profile' && (
+              <View style={{ padding: 20 }}>
+                <View style={[s.cardProfile, { alignItems: 'center', paddingVertical: 40 }]}>
+                  <Avatar uri={data.me?.avatar} label={stripAppId(data.me?.fullName || '?')} size={96} />
+                  <Text style={[s.pName, { marginTop: 16, fontSize: 20 }]}>{stripAppId(data.me?.fullName || 'Nguoi dung Eric')}</Text>
+                  <Text style={s.infoText}>@{stripAppId(data.me?.userName)}</Text>
+                  <View style={s.balanceBox}>
+                    <Text style={s.balanceTxt}>{data.balance?.balance || 0}</Text>
+                    <Text style={{ color: '#3b82f6', fontSize: 13, fontWeight: 'bold' }}>DIEM TICH LUY</Text>
+                  </View>
+                </View>
+                <Pressable onPress={() => rootController.claimAll()} style={[s.btn, { marginTop: 20 }]}>
+                  <Text style={s.btnText}>Nhan thuong nhiem vu</Text>
+                </Pressable>
+                <Pressable onPress={() => rootController.onLogout()} style={[s.btn, { backgroundColor: '#fee2e2', marginTop: 15, borderWidth: 1, borderColor: '#fecaca' }]}>
+                  <Text style={[s.btnText, { color: '#dc2626' }]}>Dang xuat khoi thiet bi</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {tab === 'compose' && (
+              <View style={s.center}><Text style={s.infoText}>Tinh nang dang bai dang phat trien</Text></View>
+            )}
+          </>
         )}
       </ScrollView>
 
@@ -698,7 +877,10 @@ export function MainAppScreen({ rootController, rootState }: MainAppScreenProps)
         {TABS.map(t => {
           const active = tab === t.key;
           return (
-            <Pressable key={t.key} onPress={() => rootController.setTab(t.key)} style={s.tab}>
+            <Pressable key={t.key} onPress={() => {
+              closeProfileWall();
+              rootController.setTab(t.key);
+            }} style={s.tab}>
               <Text style={{ fontSize: 22, color: active ? '#2563eb' : '#94a3b8' }}>{t.icon}</Text>
               <Text style={{ fontSize: 10, color: active ? '#2563eb' : '#94a3b8', marginTop: 3, fontWeight: active ? 'bold' : 'normal' }}>{t.label}</Text>
             </Pressable>

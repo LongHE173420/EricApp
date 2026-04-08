@@ -3,8 +3,6 @@ import { decode } from 'base-64';
 import { FriendApiService } from '../../api/friend/FriendApiService';
 import { buildHeaders } from '../../utils/headers';
 
-const FRIEND_USER_AGENT = 'ERIC/1.0.0 (iOS; 18.5.0; iPhone 15 Pro)';
-
 type FriendReadVariant = {
   headers: Record<string, string>;
   signatureExcludeQuery: boolean;
@@ -25,11 +23,7 @@ export class FriendService {
     FriendApiService.setBaseUrl(baseUrl);
   }
 
-  private get resolvedUserAgent() {
-    return this.userAgent && !this.userAgent.startsWith('Mozilla/')
-      ? this.userAgent
-      : FRIEND_USER_AGENT;
-  }
+
 
   private decodeTokenContext(accessToken: string): FriendTokenContext {
     try {
@@ -56,33 +50,26 @@ export class FriendService {
     clientType: 'mobile' | 'web',
     mode: 'minimal' | 'ua',
   ) {
-    return buildHeaders(deviceId, mode === 'ua' ? this.resolvedUserAgent : undefined, {
+    const headers = buildHeaders(deviceId, this.userAgent, {
       clientType,
-      includeAccept: false,
-      includeContentType: false,
-      includeForwardedProto: false,
-      includeUserAgent: mode === 'ua',
+      includeAccept: true,
+      includeContentType: true,
+      includeForwardedProto: true,
+      includeUserAgent: true,
     });
+    return {
+      ...headers,
+      'Cache-Control': 'no-cache',
+    };
   }
 
   private buildHeaderVariants(accessToken: string) {
     const tokenContext = this.decodeTokenContext(accessToken);
-    const primaryClientType = tokenContext.clientType;
-    const fallbackClientType = primaryClientType === 'web' ? 'mobile' : 'web';
 
     return [
       {
-        headers: this.buildHeadersForVariant(tokenContext.deviceId, primaryClientType, 'minimal'),
-      },
-      {
-        headers: this.buildHeadersForVariant(tokenContext.deviceId, primaryClientType, 'ua'),
-      },
-      {
-        headers: this.buildHeadersForVariant(tokenContext.deviceId, fallbackClientType, 'minimal'),
-      },
-      {
-        headers: this.buildHeadersForVariant(tokenContext.deviceId, fallbackClientType, 'ua'),
-      },
+        headers: this.buildHeadersForVariant(tokenContext.deviceId, tokenContext.clientType, 'ua'),
+      }
     ];
   }
 
@@ -96,7 +83,7 @@ export class FriendService {
   private buildPaginatedReadVariants(accessToken: string): FriendReadVariant[] {
     return this.buildHeaderVariants(accessToken).flatMap(variant => ([
       { ...variant, signatureExcludeQuery: true },
-      { ...variant, signatureExcludeQuery: false },
+      { ...variant, signatureExcludeQuery: false }
     ]));
   }
 
@@ -211,7 +198,9 @@ export class FriendService {
         FriendApiService.getMyFriends(accessToken, variant.headers),
       );
       return this.extractList(res.data);
-    } catch {
+    } catch (e: any) {
+      console.log('[FriendService] getMyFriends primary failed', e?.response?.status, e?.response?.data);
+      console.log('[FriendService] Request headers sent:', e?.config?.headers);
       const userId = this.resolveUserId(me);
       if (userId) {
         try {
@@ -219,7 +208,8 @@ export class FriendService {
             FriendApiService.getFriendList(accessToken, userId, variant.headers, 20, 0, undefined, variant.signatureExcludeQuery),
           );
           return this.extractList(res.data);
-        } catch {
+        } catch (e2: any) {
+          console.log('[FriendService] getMyFriends fallback failed', e2?.response?.status, e2?.response?.data);
           return [];
         }
       }
@@ -232,14 +222,10 @@ export class FriendService {
       const res = await this.requestWithFriendReadFallback(this.buildPaginatedReadVariants(accessToken), variant =>
         FriendApiService.getReceivedRequests(accessToken, variant.headers, 20, 0, undefined, variant.signatureExcludeQuery),
       );
-      const hidden = await this.readHiddenIds('received');
-      const items = this.extractList(res.data);
-      return this.filterByHiddenIds(
-        items,
-        hidden,
-        item => String(item?.senderId || item?.sender?.id || item?.id || ''),
-      );
-    } catch {
+      return this.extractList(res.data);
+    } catch (e: any) {
+      console.log('[FriendService] getReceivedRequests failed', e?.response?.status, e?.response?.data);
+      console.log('[FriendService] Request headers sent:', e?.config?.headers);
       return [];
     }
   }
@@ -249,13 +235,7 @@ export class FriendService {
       const res = await this.requestWithFriendReadFallback(this.buildPaginatedReadVariants(accessToken), variant =>
         FriendApiService.getSentRequests(accessToken, variant.headers, 20, 0, undefined, variant.signatureExcludeQuery),
       );
-      const hidden = await this.readHiddenIds('sent');
-      const items = this.extractList(res.data);
-      return this.filterByHiddenIds(
-        items,
-        hidden,
-        item => String(item?.receiverId || item?.receiver?.id || item?.id || ''),
-      );
+      return this.extractList(res.data);
     } catch {
       return [];
     }
@@ -268,7 +248,6 @@ export class FriendService {
       senderId,
       this.buildHeadersForVariant(tokenContext.deviceId, tokenContext.clientType, 'minimal'),
     );
-    await this.markHidden('received', senderId);
   }
 
   async rejectRequest(accessToken: string, senderId: string): Promise<void> {
@@ -278,7 +257,6 @@ export class FriendService {
       senderId,
       this.buildHeadersForVariant(tokenContext.deviceId, tokenContext.clientType, 'minimal'),
     );
-    await this.markHidden('received', senderId);
   }
 
   async sendRequest(accessToken: string, receiverId: string | number): Promise<void> {
@@ -288,7 +266,15 @@ export class FriendService {
       receiverId,
       this.buildHeadersForVariant(tokenContext.deviceId, tokenContext.clientType, 'minimal'),
     );
-    await this.markHidden('sent', receiverId);
+  }
+
+  async cancelRequest(accessToken: string, receiverId: string | number): Promise<void> {
+    const tokenContext = this.decodeTokenContext(accessToken);
+    await FriendApiService.cancelFriendRequest(
+      accessToken,
+      String(receiverId),
+      this.buildHeadersForVariant(tokenContext.deviceId, tokenContext.clientType, 'minimal'),
+    );
   }
 
   async deleteFriend(accessToken: string, friendId: string): Promise<void> {
@@ -298,7 +284,6 @@ export class FriendService {
       friendId,
       this.buildHeadersForVariant(tokenContext.deviceId, tokenContext.clientType, 'minimal'),
     );
-    await this.markHidden('friends', friendId);
   }
 
   async resetFriendCaches(): Promise<void> {

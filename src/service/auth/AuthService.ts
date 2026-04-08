@@ -220,21 +220,28 @@ export class AuthService {
     try {
       const force = options?.force === true;
       if (!force && !isAccessExpired(session.accessToken)) return session;
-      if (isRefreshExpired(session.refreshToken)) {
+      
+      if (!session.refreshToken) {
+        if (__DEV__) console.log('[AuthService:Refresh] No refresh token available');
         return null;
       }
 
+      const clientType = getTokenClientType(session.accessToken) || getTokenClientType(session.refreshToken) || 'web';
       const refreshHeaders = buildHeaders(
         this.deviceId,
         session.userAgent || this.userAgent,
+        { clientType }
       );
 
+      if (__DEV__) console.log(`[AuthService:Refresh] Attempting API refresh for ${session.phone} (${clientType})`);
+      
       const res = await this.api.refreshToken(session.refreshToken, refreshHeaders);
 
       const d = res.data?.data;
       const tokens = extractTokens(d);
 
       if (tokens) {
+        if (__DEV__) console.log('[AuthService:Refresh] Success');
         return this.buildSession(
           session.phone,
           tokens.accessToken,
@@ -243,8 +250,13 @@ export class AuthService {
           extractUserAgent(d, session.me) || session.userAgent,
         );
       }
+      
+      if (__DEV__) console.log('[AuthService:Refresh] API returned success but no tokens found:', JSON.stringify(res.data));
       return null;
-    } catch {
+    } catch (error: any) {
+      if (__DEV__) {
+        console.log('[AuthService:Refresh] Failed:', error?.response?.status, error?.response?.data || error?.message);
+      }
       return null;
     }
   }

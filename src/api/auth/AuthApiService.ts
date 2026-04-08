@@ -58,7 +58,7 @@ export class AuthApiService {
     return this.http.post<ApiRes<LoginData>>(
       '/api/auth/refresh',
       { refreshToken },
-      { headers },
+      { headers: { ...headers, Authorization: `Bearer ${refreshToken}` } },
     );
   }
 

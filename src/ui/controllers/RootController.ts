@@ -65,6 +65,8 @@ export class RootController extends BaseController<RootState> {
       }
 
       if (session) {
+        this.worker = new EricAppWorker(session);
+        await this.worker.resetFriendCaches();
         await this.loadAll(session, true);
       }
     } finally {
@@ -163,7 +165,45 @@ export class RootController extends BaseController<RootState> {
         await this.worker.acceptRequest(this.state.session, senderId);
         await this.loadAll(this.state.session, false);
       } catch (e: any) {
-        Alert.alert('Loi', e?.message || 'Khong the dong y ket ban');
+        Alert.alert('Loi', e?.message || 'Khong thể đồng ý kết bạn');
+      }
+    }
+  }
+
+  public async searchUsers(keyword: string) {
+    if (this.worker && this.state.session) {
+      return this.worker.searchUsers(this.state.session, keyword);
+    }
+    return [];
+  }
+
+  public async getProfileById(userId: string) {
+    if (this.worker && this.state.session) {
+      return this.worker.getProfileById(this.state.session, userId);
+    }
+    return null;
+  }
+
+  public async sendFriendRequest(receiverId: string) {
+    if (this.worker && this.state.session) {
+      try {
+        await this.worker.sendFriendRequest(this.state.session, receiverId);
+        await this.loadAll(this.state.session, false);
+        Alert.alert('Thành công', 'Đã gửi lời mời kết bạn');
+      } catch (e: any) {
+        Alert.alert('Lỗi', e?.message || 'Không thể gửi lời mời kết bạn');
+      }
+    }
+  }
+
+  public async cancelFriendRequest(receiverId: string) {
+    if (this.worker && this.state.session) {
+      try {
+        await this.worker.cancelFriendRequest(this.state.session, receiverId);
+        await this.loadAll(this.state.session, false);
+        Alert.alert('Thành công', 'Đã hủy lời mời kết bạn');
+      } catch (e: any) {
+        Alert.alert('Lỗi', e?.message || 'Không thể hủy lời mời kết bạn');
       }
     }
   }
