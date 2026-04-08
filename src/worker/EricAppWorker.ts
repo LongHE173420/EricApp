@@ -6,6 +6,7 @@ import { FeedService } from '../service/feed/FeedService';
 import { FriendService } from '../service/friend/FriendService';
 import { MissionService } from '../service/missions/MissionService';
 import { NotificationService } from '../service/notification/NotificationService';
+import { WorkerCtx, AppLogger } from './WorkerTypes';
 
 export type AppData = {
   me: any;
@@ -18,6 +19,8 @@ export type AppData = {
   missions: any[];
   balance: { balance: number; dailyEarnedPoint: number; dailyRemainingPoint: number; dailyPointLimit: number | null } | null;
   reactionCodes: string[];
+  profileFeed: any[];
+  profileSurf: any[];
 };
 
 export const EMPTY_DATA: AppData = {
@@ -31,22 +34,36 @@ export const EMPTY_DATA: AppData = {
   missions: [],
   balance: null,
   reactionCodes: ['LIKE'],
+  profileFeed: [],
+  profileSurf: [],
 };
 
 export class EricAppWorker {
+  private readonly logger: AppLogger;
+  private readonly logId: number;
+  private session: StoredSession;
+
   private readonly auth: AuthService;
   private readonly feed: FeedService;
   private readonly friend: FriendService;
   private readonly mission: MissionService;
   private readonly notification: NotificationService;
 
-  constructor(session: StoredSession) {
-    const { baseUrl, deviceId, userAgent } = session;
+  constructor(ctx: WorkerCtx) {
+    this.logger = ctx.logger;
+    this.logId = ctx.logId;
+    this.session = ctx.session;
+
+    const { baseUrl, deviceId, userAgent, phone } = this.session;
     this.auth = new AuthService(baseUrl, deviceId, userAgent);
     this.feed = new FeedService(baseUrl, deviceId, userAgent);
-    this.friend = new FriendService(baseUrl, deviceId, userAgent, session.phone);
+    this.friend = new FriendService(baseUrl, deviceId, userAgent, phone);
     this.mission = new MissionService(baseUrl, deviceId, userAgent);
     this.notification = new NotificationService(baseUrl, deviceId, userAgent);
+  }
+
+  public getSession(): StoredSession {
+    return this.session;
   }
 
   private resolveUserAgent(me?: any): string {
@@ -66,24 +83,26 @@ export class EricAppWorker {
     ).trim();
   }
 
-  async ensureValidSession(session: StoredSession): Promise<StoredSession> {
-    const accessClientType = getTokenClientType(session.accessToken);
-    const refreshLooksExpired = isRefreshExpired(session.refreshToken);
+  async ensureValidSession(): Promise<StoredSession> {
+    const accessClientType = getTokenClientType(this.session.accessToken);
+    const refreshLooksExpired = isRefreshExpired(this.session.refreshToken);
 
-    if (!isAccessExpired(session.accessToken)) {
+    if (!isAccessExpired(this.session.accessToken)) {
       if (accessClientType === 'web' || refreshLooksExpired) {
-        return session;
+        return this.session;
       }
 
-      const upgraded = await this.auth.refreshSession(session, { force: true });
+      this.logger.info({ logId: this.logId }, 'Forcing session upgrade...');
+      const upgraded = await this.auth.refreshSession(this.session, { force: true });
       if (upgraded) {
-        return upgraded;
+        this.session = upgraded;
       }
 
-      return session;
+      return this.session;
     }
 
-    const refreshed = await this.auth.refreshSession(session);
+    this.logger.info({ logId: this.logId }, 'Refreshing expired session...');
+    const refreshed = await this.auth.refreshSession(this.session);
     if (!refreshed) {
       if (refreshLooksExpired) {
         throw new Error('Phien dang nhap da het han. Vui long dang nhap lai.');
@@ -91,31 +110,41 @@ export class EricAppWorker {
       throw new Error('Khong the lam moi phien dang nhap. Kiem tra mang hoac API refresh.');
     }
 
-    return refreshed;
+    this.session = refreshed;
+    return this.session;
   }
 
-  async loadAll(session: StoredSession): Promise<{ session: StoredSession; data: AppData }> {
-    const s = await this.ensureValidSession(session);
+  async loadAll(): Promise<{ session: StoredSession; data: AppData }> {
+    await this.ensureValidSession();
+    const s = this.session;
     const token = s.accessToken;
+    
     const resolvedMe = await this.auth.getMe(s).catch(() => s.me);
     const resolvedUserAgent = this.resolveUserAgent(resolvedMe) || s.userAgent;
     const friendService = new FriendService(s.baseUrl, s.deviceId, resolvedUserAgent, s.phone);
 
-    const [feed, surf, friends, friendRequests, sentFriendRequests, notifications, missions, balance, reactionCodes] =
-      await Promise.allSettled([
-        this.feed.getHomeFeed(token),
-        this.feed.getSurfHome(token),
-        friendService.getMyFriends(token, resolvedMe),
-        friendService.getReceivedRequests(token),
-        friendService.getSentRequests(token),
-        this.notification.list(token),
-        this.mission.getMissions(token),
-        this.mission.getPointBalance(token),
-        this.feed.getReactionCodes(token),
-      ]);
+    const [
+      feed, surf, friends, friendRequests, sentFriendRequests,
+      notifications, missions, balance, reactionCodes,
+      profileFeed, profileSurf
+    ] = await Promise.allSettled([
+      this.feed.getHomeFeed(token),
+      this.feed.getSurfHome(token),
+      friendService.getMyFriends(token, resolvedMe),
+      friendService.getReceivedRequests(token),
+      friendService.getSentRequests(token),
+      this.notification.list(token),
+      this.mission.getMissions(token),
+      this.mission.getPointBalance(token),
+      this.feed.getReactionCodes(token),
+      this.feed.getProfileFeed(token),
+      this.feed.getProfileSurf(token),
+    ]);
+
+    this.session = { ...s, userAgent: resolvedUserAgent, me: resolvedMe };
 
     return {
-      session: { ...s, userAgent: resolvedUserAgent, me: resolvedMe },
+      session: this.session,
       data: {
         me: resolvedMe,
         feed: feed.status === 'fulfilled' ? feed.value : [],
@@ -129,73 +158,77 @@ export class EricAppWorker {
         reactionCodes: (reactionCodes.status === 'fulfilled' && reactionCodes.value.length)
           ? reactionCodes.value
           : ['LIKE'],
+        profileFeed: profileFeed.status === 'fulfilled' ? profileFeed.value : [],
+        profileSurf: profileSurf.status === 'fulfilled' ? profileSurf.value : [],
       },
     };
   }
 
-  async reactToPost(session: StoredSession, postId: string, code: string) {
-    const s = await this.ensureValidSession(session);
-    await this.feed.reactToPost(s.accessToken, postId, code);
-    return s;
+  async reactToPost(postId: string, code: string) {
+    await this.ensureValidSession();
+    await this.feed.reactToPost(this.session.accessToken, postId, code);
   }
 
-  async repostPost(session: StoredSession, postId: string) {
-    const s = await this.ensureValidSession(session);
-    await this.feed.repostPost(s.accessToken, postId);
-    return s;
+  async repostPost(postId: string) {
+    await this.ensureValidSession();
+    await this.feed.repostPost(this.session.accessToken, postId);
   }
 
-  async acceptRequest(session: StoredSession, senderId: string) {
-    const s = await this.ensureValidSession(session);
-    await this.friend.acceptRequest(s.accessToken, senderId);
-    return s;
+  async acceptRequest(senderId: string) {
+    await this.ensureValidSession();
+    await this.friend.acceptRequest(this.session.accessToken, senderId);
   }
 
-  async sendFriendRequest(session: StoredSession, receiverId: string) {
-    const s = await this.ensureValidSession(session);
-    await this.friend.sendRequest(s.accessToken, receiverId);
-    return s;
+  async sendFriendRequest(receiverId: string) {
+    await this.ensureValidSession();
+    await this.friend.sendRequest(this.session.accessToken, receiverId);
   }
 
-  async cancelFriendRequest(session: StoredSession, receiverId: string) {
-    const s = await this.ensureValidSession(session);
-    await this.friend.cancelRequest(s.accessToken, receiverId);
-    return s;
+  async cancelFriendRequest(receiverId: string) {
+    await this.ensureValidSession();
+    await this.friend.cancelRequest(this.session.accessToken, receiverId);
   }
 
-  async searchUsers(session: StoredSession, keyword: string) {
-    const s = await this.ensureValidSession(session);
+  async searchUsers(keyword: string) {
+    await this.ensureValidSession();
+    const s = this.session;
     const clientType = getTokenClientType(s.accessToken);
     const headers = buildHeaders(s.deviceId, s.userAgent, { clientType });
     const res = await UserApiService.searchUsers(s.accessToken, s.baseUrl, keyword, 10, 0, headers);
     return res?.data?.data || res?.data || [];
   }
 
-  async getProfileById(session: StoredSession, userId: string) {
-    const s = await this.ensureValidSession(session);
+  async getProfileById(userId: string) {
+    await this.ensureValidSession();
+    const s = this.session;
     const clientType = getTokenClientType(s.accessToken);
     const headers = buildHeaders(s.deviceId, s.userAgent, { clientType });
     const res = await UserApiService.getProfileById(s.accessToken, s.baseUrl, userId, headers);
     return res?.data?.data || res?.data;
   }
 
-
-  async rejectRequest(session: StoredSession, senderId: string) {
-    const s = await this.ensureValidSession(session);
-    await this.friend.rejectRequest(s.accessToken, senderId);
-    return s;
+  async getProfileContent(userId: string) {
+    const [profile, feed, surf] = await Promise.all([
+      this.getProfileById(userId),
+      this.feed.getProfileFeed(this.session.accessToken, userId),
+      this.feed.getProfileSurf(this.session.accessToken, userId),
+    ]);
+    return { profile, feed, surf };
   }
 
-  async deleteFriend(session: StoredSession, friendId: string) {
-    const s = await this.ensureValidSession(session);
-    await this.friend.deleteFriend(s.accessToken, friendId);
-    return s;
+  async rejectRequest(senderId: string) {
+    await this.ensureValidSession();
+    await this.friend.rejectRequest(this.session.accessToken, senderId);
   }
 
-  async readNotification(session: StoredSession, notificationId: string) {
-    const s = await this.ensureValidSession(session);
-    await this.notification.read(s.accessToken, notificationId);
-    return s;
+  async deleteFriend(friendId: string) {
+    await this.ensureValidSession();
+    await this.friend.deleteFriend(this.session.accessToken, friendId);
+  }
+
+  async readNotification(notificationId: string) {
+    await this.ensureValidSession();
+    await this.notification.read(this.session.accessToken, notificationId);
   }
 
   getStreakMission(missions: any[]) {
@@ -206,22 +239,21 @@ export class EricAppWorker {
     return this.mission.getStreakClaimState(streakMission);
   }
 
-  async claimStreak(session: StoredSession, missionId: number, currentValue: number) {
-    const s = await this.ensureValidSession(session);
-    await this.mission.claimStreak(s.accessToken, missionId, currentValue);
-    return s;
+  async claimStreak(missionId: number, currentValue: number) {
+    await this.ensureValidSession();
+    await this.mission.claimStreak(this.session.accessToken, missionId, currentValue);
   }
 
-  async claimAllEligible(session: StoredSession) {
-    const s = await this.ensureValidSession(session);
-    return this.mission.claimAllEligible(s.accessToken);
+  async claimAllEligible() {
+    await this.ensureValidSession();
+    return this.mission.claimAllEligible(this.session.accessToken);
   }
 
   async resetFriendCaches() {
     await this.friend.resetFriendCaches();
   }
 
-  async logout(session: StoredSession) {
-    await this.auth.logout(session);
+  async logout() {
+    await this.auth.logout(this.session);
   }
 }

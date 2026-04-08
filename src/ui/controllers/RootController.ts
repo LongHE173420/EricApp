@@ -13,8 +13,6 @@ import {
 export type Tab = 'home' | 'compose' | 'friends' | 'alerts' | 'profile';
 
 export const DEFAULT_BASE_URL = 'https://social.eric.pro.vn';
-export const DEFAULT_UA =
-  'ERIC/1.0.0 (iOS; 18.5.0; iPhone 15 Pro)';
 
 export interface RootState {
   booting: boolean;
@@ -65,7 +63,11 @@ export class RootController extends BaseController<RootState> {
       }
 
       if (session) {
-        this.worker = new EricAppWorker(session);
+        this.worker = new EricAppWorker({
+          session,
+          logId: Date.now(),
+          logger: console,
+        });
         await this.worker.resetFriendCaches();
         await this.loadAll(session, true);
       }
@@ -78,8 +80,12 @@ export class RootController extends BaseController<RootState> {
     if (showSpinner) this.setState({ loading: true });
 
     try {
-      this.worker = new EricAppWorker(seed);
-      const res = await this.worker.loadAll(seed);
+      this.worker = new EricAppWorker({
+        session: seed,
+        logId: Date.now(),
+        logger: console,
+      });
+      const res = await this.worker.loadAll();
 
       this.setState({
         session: res.session,
@@ -125,7 +131,7 @@ export class RootController extends BaseController<RootState> {
 
   public async onLogout() {
     if (this.worker && this.state.session) {
-      await this.worker.logout(this.state.session).catch(() => {});
+      await this.worker.logout().catch(() => { });
     }
     await clearStoredSession();
     this.worker = null;
@@ -141,16 +147,17 @@ export class RootController extends BaseController<RootState> {
   public async onReact(pid: string) {
     if (this.worker && this.state.session) {
       try {
-        const next = await this.worker.reactToPost(this.state.session, pid, 'LIKE');
+        await this.worker.reactToPost(pid, 'LIKE');
+        const next = this.worker.getSession();
         await this.loadAll(next, false);
-      } catch {}
+      } catch { }
     }
   }
 
   public async claimAll() {
     if (this.worker && this.state.session) {
       try {
-        const res = await this.worker.claimAllEligible(this.state.session);
+        const res = await this.worker.claimAllEligible();
         await this.loadAll(this.state.session, false);
         Alert.alert('Thanh cong', `Da nhan thuong ${res.claimed.length} nhiem vu.`);
       } catch (e: any) {
@@ -162,7 +169,7 @@ export class RootController extends BaseController<RootState> {
   public async acceptRequest(senderId: string) {
     if (this.worker && this.state.session) {
       try {
-        await this.worker.acceptRequest(this.state.session, senderId);
+        await this.worker.acceptRequest(senderId);
         await this.loadAll(this.state.session, false);
       } catch (e: any) {
         Alert.alert('Loi', e?.message || 'Khong thể đồng ý kết bạn');
@@ -172,22 +179,29 @@ export class RootController extends BaseController<RootState> {
 
   public async searchUsers(keyword: string) {
     if (this.worker && this.state.session) {
-      return this.worker.searchUsers(this.state.session, keyword);
+      return this.worker.searchUsers(keyword);
     }
     return [];
   }
 
   public async getProfileById(userId: string) {
     if (this.worker && this.state.session) {
-      return this.worker.getProfileById(this.state.session, userId);
+      return this.worker.getProfileById(userId);
     }
     return null;
+  }
+
+  public async getProfileContent(userId: string) {
+    if (this.worker && this.state.session) {
+      return this.worker.getProfileContent(userId);
+    }
+    return { profile: null, feed: [], surf: [] };
   }
 
   public async sendFriendRequest(receiverId: string) {
     if (this.worker && this.state.session) {
       try {
-        await this.worker.sendFriendRequest(this.state.session, receiverId);
+        await this.worker.sendFriendRequest(receiverId);
         await this.loadAll(this.state.session, false);
         Alert.alert('Thành công', 'Đã gửi lời mời kết bạn');
       } catch (e: any) {
@@ -199,7 +213,7 @@ export class RootController extends BaseController<RootState> {
   public async cancelFriendRequest(receiverId: string) {
     if (this.worker && this.state.session) {
       try {
-        await this.worker.cancelFriendRequest(this.state.session, receiverId);
+        await this.worker.cancelFriendRequest(receiverId);
         await this.loadAll(this.state.session, false);
         Alert.alert('Thành công', 'Đã hủy lời mời kết bạn');
       } catch (e: any) {
@@ -211,7 +225,7 @@ export class RootController extends BaseController<RootState> {
   public async rejectRequest(senderId: string) {
     if (this.worker && this.state.session) {
       try {
-        await this.worker.rejectRequest(this.state.session, senderId);
+        await this.worker.rejectRequest(senderId);
         await this.loadAll(this.state.session, false);
       } catch (e: any) {
         Alert.alert('Loi', e?.message || 'Khong the tu choi loi moi ket ban');
@@ -222,7 +236,7 @@ export class RootController extends BaseController<RootState> {
   public async deleteFriend(friendId: string) {
     if (this.worker && this.state.session) {
       try {
-        await this.worker.deleteFriend(this.state.session, friendId);
+        await this.worker.deleteFriend(friendId);
         await this.loadAll(this.state.session, false);
       } catch (e: any) {
         Alert.alert('Loi', e?.message || 'Khong the xoa ban be');

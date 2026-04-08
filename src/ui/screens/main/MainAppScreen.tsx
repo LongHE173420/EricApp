@@ -35,14 +35,18 @@ export function MainAppScreen({ rootController, rootState }: MainAppScreenProps)
   // States for sub-views orchestration
   const [activeVideo, setActiveVideo] = useState<MediaAsset | null>(null);
   const [viewingProfileId, setViewingProfileId] = useState<string | null>(null);
-  const [viewingProfileData, setViewingProfileData] = useState<any>(null);
+  const [viewingProfileContent, setViewingProfileContent] = useState<{ profile: any; feed: any[]; surf: any[] } | null>(null);
 
   const openProfileWall = async (userId: string) => {
     setViewingProfileId(String(userId));
-    setViewingProfileData(null);
+    setViewingProfileContent(null);
     try {
-      const p = await rootController.getProfileById(String(userId));
-      setViewingProfileData(p || { fullName: 'Người dùng này chưa có thông tin', userName: '' });
+      const content = await rootController.getProfileContent(String(userId));
+      setViewingProfileContent({
+        profile: content.profile || { fullName: 'Người dùng này chưa có thông tin', userName: '' },
+        feed: content.feed || [],
+        surf: content.surf || [],
+      });
     } catch (e: any) {
       console.log('[openProfileWall] Error:', e?.response?.status, e?.response?.data || e?.message);
       const status = e?.response?.status || 'Unknown';
@@ -50,13 +54,17 @@ export function MainAppScreen({ rootController, rootState }: MainAppScreenProps)
       if (__DEV__) {
         Alert.alert(`Test Lỗi API (User ID: ${userId})`, `Status: ${status}\nMessage: ${msg}`);
       }
-      setViewingProfileData({ fullName: 'Lỗi tải trang cá nhân', userName: 'Không thể truy xuất dữ liệu', isError: true });
+      setViewingProfileContent({
+        profile: { fullName: 'Lỗi tải trang cá nhân', userName: 'Không thể truy xuất dữ liệu', isError: true },
+        feed: [],
+        surf: [],
+      });
     }
   };
 
   const closeProfileWall = () => {
     setViewingProfileId(null);
-    setViewingProfileData(null);
+    setViewingProfileContent(null);
   };
 
   if (!session) return null;
@@ -79,10 +87,11 @@ export function MainAppScreen({ rootController, rootState }: MainAppScreenProps)
         {viewingProfileId ? (
           <PersonalWallView
             profileId={viewingProfileId}
-            profileData={viewingProfileData}
+            profileContent={viewingProfileContent}
             data={data}
             rootController={rootController}
             onClose={closeProfileWall}
+            onPlayVideo={setActiveVideo}
           />
         ) : (
           <>
@@ -107,7 +116,7 @@ export function MainAppScreen({ rootController, rootState }: MainAppScreenProps)
 
             {tab === 'alerts' && <NotificationsTabView data={data} />}
 
-            {tab === 'profile' && <ProfileTabView data={data} rootController={rootController} />}
+            {tab === 'profile' && <ProfileTabView data={data} rootController={rootController} onPlayVideo={setActiveVideo} />}
           </>
         )}
       </ScrollView>

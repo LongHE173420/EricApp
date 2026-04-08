@@ -11,18 +11,21 @@ const transformResponse = [(data: any) => {
 }];
 
 export class FeedApiService {
-  static async getFeedHome(accessToken: string, baseURL: string, headers = buildHeaders(), postId = '', createdAt = Date.now(), limit = 10) {
+  static async getFeedTimeline(accessToken: string, baseURL: string, headers = buildHeaders(), userId = '', isProfile = false, postId = '', createdAt = Date.now(), limit = 10) {
     return ApiClient.createSignedClient(headers).post(
       `${baseURL}/api/feed/home`,
-      ApiClient.buildPayload({ postId, createdAt, limit }),
+      ApiClient.buildPayload({ userId, isProfile, postId, createdAt, limit }),
       { headers: { ...headers, Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, transformResponse },
     );
   }
 
-  static async getFeedProfile(accessToken: string, baseURL: string, headers = buildHeaders(), limit = 10, offset = 0) {
+  static async getFeedProfile(accessToken: string, baseURL: string, headers = buildHeaders(), userId = '', limit = 10, offset = 0) {
+    const params: any = { limit, offset };
+    if (userId) params.userId = userId;
+
     return ApiClient.createSignedClient(headers).get(`${baseURL}/api/feed/profile`, {
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },
-      params: { limit, offset },
+      params,
       transformResponse,
     });
   }

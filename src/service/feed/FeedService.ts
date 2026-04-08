@@ -113,7 +113,7 @@ export class FeedService {
 
   async getHomeFeed(accessToken: string, limit = 10): Promise<any[]> {
     try {
-      const res = await FeedApiService.getFeedHome(accessToken, this.baseUrl, this.headers, '', Date.now(), limit);
+      const res = await FeedApiService.getFeedTimeline(accessToken, this.baseUrl, this.headers, '', false, '', Date.now(), limit);
       debugLogMediaPayload('feed', res, this.baseUrl);
       const raw = res.data?.data ?? res.data;
       return Array.isArray(raw) ? raw : [];
@@ -122,9 +122,21 @@ export class FeedService {
     }
   }
 
-  async getProfileFeed(accessToken: string, limit = 10, offset = 0): Promise<any[]> {
+  async getProfileFeed(accessToken: string, userId = '', limit = 10, offset = 0): Promise<any[]> {
     try {
-      const res = await FeedApiService.getFeedProfile(accessToken, this.baseUrl, this.headers, limit, offset);
+      const res = await FeedApiService.getFeedProfile(accessToken, this.baseUrl, this.headers, userId, limit, offset);
+      debugLogMediaPayload('feed', res, this.baseUrl);
+      const raw = res.data?.data ?? res.data;
+      return Array.isArray(raw) ? raw : [];
+    } catch {
+      return [];
+    }
+  }
+
+  async getProfileSurf(accessToken: string, userId = '', limit = 10, offset = 0): Promise<any[]> {
+    try {
+      const res = await SurfApiService.getSurfProfile(accessToken, this.baseUrl, this.headers, userId, limit, offset);
+      debugLogMediaPayload('surf', res, this.baseUrl);
       const raw = res.data?.data ?? res.data;
       return Array.isArray(raw) ? raw : [];
     } catch {

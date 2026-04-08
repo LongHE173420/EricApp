@@ -40,4 +40,12 @@ export class SurfApiService {
       { headers: { ...headers, Authorization: `Bearer ${accessToken}` } },
     );
   }
+
+  static async getSurfProfile(accessToken: string, baseURL: string, headers = buildHeaders(), userId = '', limit = 10, offset = 0) {
+    return ApiClient.createSignedClient(headers).get(`${baseURL}/api/surf/profile`, {
+      headers: { ...headers, Authorization: `Bearer ${accessToken}` },
+      params: { userId, limit, offset },
+      transformResponse,
+    });
+  }
 }
