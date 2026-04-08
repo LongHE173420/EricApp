@@ -1,10 +1,10 @@
 import React, { useEffect, useRef } from 'react';
 import { ActivityIndicator, AppState, AppStateStatus, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { useController } from '../core/useController';
-import { RootController } from '../controllers/RootController';
-import { AuthScreen } from './AuthScreen';
-import { MainAppScreen } from './MainAppScreen';
+import { useController } from '../../core/useController';
+import { RootController } from '../../controllers/RootController';
+import { AuthScreen } from '../auth/AuthScreen';
+import { MainAppScreen } from '../main/MainAppScreen';
 
 export function RootScreen() {
   const [rootState, rootController] = useController(RootController);

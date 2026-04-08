@@ -4,9 +4,9 @@ import {
   Pressable, ScrollView, StyleSheet, Text,
   TextInput, View
 } from 'react-native';
-import { useController } from '../core/useController';
-import { AuthController } from '../controllers/AuthController';
-import { RootController } from '../controllers/RootController';
+import { useController } from '../../core/useController';
+import { AuthController } from '../../controllers/AuthController';
+import { RootController } from '../../controllers/RootController';
 
 interface AuthScreenProps {
   rootController: RootController;

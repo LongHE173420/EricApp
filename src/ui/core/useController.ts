@@ -14,13 +14,13 @@ export function useController<T extends BaseController<any>>(
 ): [ReturnType<T['getState']>, T] {
   // Instantiate the controller once
   const controllerRef = useRef<T | null>(null);
-  
+
   if (controllerRef.current === null) {
     controllerRef.current = new ControllerClass(...args);
   }
 
   const controller = controllerRef.current as T;
-  
+
   // React state matches controller state
   const [state, setState] = useState<ReturnType<T['getState']>>(controller.getState());
 

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { RootScreen } from './src/ui/screens/RootScreen';
+import { RootScreen } from './src/ui/screens/root/RootScreen';
 
 export default function App() {
   useEffect(() => {
