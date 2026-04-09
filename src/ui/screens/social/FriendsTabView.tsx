@@ -58,14 +58,21 @@ export function FriendsTabView({
         <View style={{ marginBottom: 20 }}>
           <Text style={cs.sectionTitle}>Kết quả tìm kiếm ({searchResults.length})</Text>
           {searchResults.map((r: any, index: number) => {
-            const sId = String(r?.id || r?.userId || index);
+            const sId = String(r?.userId || r?.id || index);
+            const displayName = [r?.firstName, r?.lastName].filter(Boolean).join(' ') || 'Người dùng';
+            const statusLabel = r?.friendshipStatus === 'REQUEST_SENT' ? 'Đã gửi lời mời' : 
+                                r?.friendshipStatus === 'FRIEND' ? 'Bạn bè' : 
+                                r?.friendshipStatus === 'REQUEST_RECEIVED' ? 'Lời mời chờ bạn' : '';
+
             return (
               <Pressable key={`search-${sId}`} style={[cs.card, styles.friendRowCard]} onPress={() => onOpenProfile(sId)}>
                 <View style={styles.friendIdentity}>
-                  <Avatar uri={r?.avatar} label={r?.fullName || r?.userName || '?'} size={34} />
+                  <Avatar uri={r?.avatar} label={displayName} size={34} />
                   <View style={{ marginLeft: 10, flex: 1 }}>
-                    <Text style={cs.pName}>{r?.fullName || r?.userName || 'Người dùng'}</Text>
-                    <Text style={cs.pTime}>@{stripAppId(r?.userName || 'unknown')}</Text>
+                    <Text style={cs.pName}>{displayName}</Text>
+                    {statusLabel ? <Text style={[cs.pTime, { color: '#3b82f6' }]}>{statusLabel}</Text> : 
+                      (r?.userName ? <Text style={cs.pTime}>@{stripAppId(r.userName)}</Text> : null)
+                    }
                   </View>
                 </View>
               </Pressable>

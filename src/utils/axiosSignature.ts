@@ -131,8 +131,8 @@ export function applyStandardInterceptors(axiosInstance: AxiosInstance | any, de
 
             const authHeader = readHeader("Authorization");
             const path = resolveRequestPath();
-            const signaturePath = config.__signaturePath
-                || (config.__signatureExcludeQuery ? path.split("?")[0] : path);
+            // Match Postman's getPath() behavior: Always exclude query string from signature path
+            const signaturePath = config.__signaturePath || path.split("?")[0];
 
             let token = "";
             if (authHeader && typeof authHeader === "string") {

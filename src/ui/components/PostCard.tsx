@@ -56,12 +56,18 @@ export function PostCard({
         />
       ) : null}
 
+      <View style={cs.pMetrics}>
+        <Text style={cs.pMetricsText}>{post.positive || 0} lượt thích</Text>
+      </View>
+
       <View style={styles.pActions}>
         <Pressable 
-          onPress={() => rootController.onReact(String(post.id ?? post.postId ?? ''))} 
-          style={styles.pAction}
+          onPress={() => rootController.onReact(String(post.id || post.postId || ''), post.reaction === 'LIKE')} 
+          style={[styles.pAction, { paddingVertical: 12, paddingHorizontal: 20 }]}
         >
-          <Text style={styles.pActionText}>Thích</Text>
+          <Text style={[styles.pActionText, post.reaction === 'LIKE' && cs.pActionActive]}>
+            {post.reaction === 'LIKE' ? 'Đã thích' : 'Thích'}
+          </Text>
         </Pressable>
       </View>
     </View>

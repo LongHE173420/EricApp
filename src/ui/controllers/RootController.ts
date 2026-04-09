@@ -144,13 +144,23 @@ export class RootController extends BaseController<RootState> {
     await persistBaseUrl(DEFAULT_BASE_URL);
   }
 
-  public async onReact(pid: string) {
-    if (this.worker && this.state.session) {
-      try {
+  public async onReact(pid: string, alreadyReacted = false) {
+    if (!this.worker || !this.state.session) return;
+    if (!pid || pid === 'undefined' || pid === 'null') return;
+    try {
+      if (alreadyReacted) {
+        // Find if there is a removeReaction in worker, if not use a generic approach
+        const s = this.state.session;
+        await this.worker.ensureValidSession();
+        // Access nested api through private fields if needed or exposed methods
+        // For simplicity, let's assume worker has removeReaction or we implement it
+        await this.worker.removeReaction(pid);
+      } else {
         await this.worker.reactToPost(pid, 'LIKE');
-        const next = this.worker.getSession();
-        await this.loadAll(next, false);
-      } catch { }
+      }
+      await this.loadAll(this.worker.getSession(), false);
+    } catch (e: any) {
+      Alert.alert('Lỗi', e?.message || 'Không thể thực hiện tương tác');
     }
   }
 

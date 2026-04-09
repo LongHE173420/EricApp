@@ -13,4 +13,7 @@ export const commonStyles = StyleSheet.create({
   sectionTitle: { color: '#64748b', fontWeight: '800', fontSize: 13, marginBottom: 12, marginLeft: 4, textTransform: 'uppercase' },
   empty: { color: '#94a3b8', textAlign: 'center', marginTop: 100 },
   emptyInline: { color: '#94a3b8', marginLeft: 4, marginBottom: 8 },
+  pMetrics: { flexDirection: 'row', alignItems: 'center', marginTop: 12, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: '#f8fafc' },
+  pMetricsText: { color: '#64748b', fontSize: 13, marginLeft: 4 },
+  pActionActive: { color: '#2563eb', fontWeight: '800' },
 });

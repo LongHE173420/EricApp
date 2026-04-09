@@ -2,6 +2,7 @@ import { AuthService, StoredSession, getTokenClientType, isAccessExpired, isRefr
 import { buildHeaders } from '../utils/headers';
 import { UserApiService } from '../api/user/UserApiService';
 import { FeedApiService } from '../api/feed/FeedApiService';
+import { ReactionApiService } from '../api/reaction/ReactionApiService';
 import { FeedService } from '../service/feed/FeedService';
 import { FriendService } from '../service/friend/FriendService';
 import { MissionService } from '../service/missions/MissionService';
@@ -118,7 +119,7 @@ export class EricAppWorker {
     await this.ensureValidSession();
     const s = this.session;
     const token = s.accessToken;
-    
+
     const resolvedMe = await this.auth.getMe(s).catch(() => s.me);
     const resolvedUserAgent = this.resolveUserAgent(resolvedMe) || s.userAgent;
     const friendService = new FriendService(s.baseUrl, s.deviceId, resolvedUserAgent, s.phone);
@@ -168,6 +169,12 @@ export class EricAppWorker {
     await this.ensureValidSession();
     await this.feed.reactToPost(this.session.accessToken, postId, code);
   }
+  
+  async removeReaction(postId: string) {
+    await this.ensureValidSession();
+    const headers = buildHeaders(this.session.deviceId, this.session.userAgent);
+    await ReactionApiService.removeReaction(this.session.accessToken, this.session.baseUrl, postId, headers);
+  }
 
   async repostPost(postId: string) {
     await this.ensureValidSession();
@@ -194,8 +201,19 @@ export class EricAppWorker {
     const s = this.session;
     const clientType = getTokenClientType(s.accessToken);
     const headers = buildHeaders(s.deviceId, s.userAgent, { clientType });
-    const res = await UserApiService.searchUsers(s.accessToken, s.baseUrl, keyword, 10, 0, headers);
-    return res?.data?.data || res?.data || [];
+    
+    console.log('[SearchDebug] Searching for:', keyword);
+    try {
+      const res = await UserApiService.searchUsers(s.accessToken, s.baseUrl, keyword, 10, 0, headers);
+      console.log('[SearchDebug] Response Status:', res.status);
+      console.log('[SearchDebug] Response Data:', JSON.stringify(res.data, null, 2));
+      
+      const results = res?.data?.data || res?.data;
+      return Array.isArray(results) ? results : [];
+    } catch (error: any) {
+      console.log('[SearchDebug] Search Error:', error?.message);
+      return [];
+    }
   }
 
   async getProfileById(userId: string) {

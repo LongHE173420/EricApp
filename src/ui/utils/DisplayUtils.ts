@@ -4,7 +4,13 @@ export const timeOf = (v: any): string => {
   if (!v) return 'Now';
   const n = Number(v);
   const d = isFinite(n) ? new Date(String(v).length > 10 ? n : n * 1000) : new Date(v);
-  return isNaN(d.getTime()) ? 'Now' : d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+  if (isNaN(d.getTime())) return 'Now';
+  const hh = d.getHours().toString().padStart(2, '0');
+  const mm = d.getMinutes().toString().padStart(2, '0');
+  const day = d.getDate().toString().padStart(2, '0');
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  const year = d.getFullYear();
+  return `${hh}:${mm} ${day}/${month}/${year}`;
 };
 
 export const stripAppId = (text?: string) => {

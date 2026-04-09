@@ -77,9 +77,9 @@ const debugLogMediaPayload = (scope: 'feed' | 'surf', payload: any, baseUrl: str
       ? topLevelData
       : Array.isArray(payload?.data?.layout) && isObject(payload?.data?.data)
         ? payload.data.layout.map((entry: any) => ({
-            ...(payload.data.data?.[String(entry?.id)] || {}),
-            ...entry,
-          }))
+          ...(payload.data.data?.[String(entry?.id)] || {}),
+          ...entry,
+        }))
         : [];
 
   const summary = rawItems.slice(0, 5).map((item: any) => ({
@@ -107,7 +107,7 @@ export class FeedService {
     private readonly baseUrl: string,
     private readonly deviceId: string,
     private readonly userAgent: string,
-  ) {}
+  ) { }
 
   private get headers() { return buildHeaders(this.deviceId, this.userAgent); }
 
