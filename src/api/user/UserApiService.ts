@@ -11,40 +11,42 @@ const transformResponse = [(data: any) => {
 }];
 
 export class UserApiService {
-  static async getProfileMe(accessToken: string, baseURL: string, headers = buildHeaders()) {
-    return ApiClient.createSignedClient(headers).get(`${baseURL}/api/user/me`, {
+  constructor(private readonly baseURL: string, private readonly deviceId: string) {}
+
+  async getProfileMe(accessToken: string, headers: Record<string, string>) {
+    return ApiClient.createSignedClient(headers).get(`${this.baseURL}/api/user/me`, {
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },
       transformResponse,
     });
   }
 
-  static async getProfileById(accessToken: string, baseURL: string, id: string, headers = buildHeaders()) {
+  async getProfileById(accessToken: string, id: string, headers: Record<string, string>) {
     return ApiClient.createSignedClient(headers).request({
       method: 'GET',
-      url: `${baseURL}/api/user/id/${id}`,
+      url: `${this.baseURL}/api/user/id/${id}`,
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },
       data: {},
       transformResponse,
     });
   }
 
-  static async getProfileByUsername(accessToken: string, baseURL: string, username: string, headers = buildHeaders()) {
-    return ApiClient.createSignedClient(headers).get(`${baseURL}/api/user/username/${username}`, {
+  async getProfileByUsername(accessToken: string, username: string, headers: Record<string, string>) {
+    return ApiClient.createSignedClient(headers).get(`${this.baseURL}/api/user/username/${username}`, {
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },
       transformResponse,
     });
   }
 
-  static async updateProfile(accessToken: string, baseURL: string, profileData: any, headers = buildHeaders()) {
-    return ApiClient.createSignedClient(headers).post(`${baseURL}/api/user/update-profile`, profileData, {
+  async updateProfile(accessToken: string, profileData: any, headers: Record<string, string>) {
+    return ApiClient.createSignedClient(headers).post(`${this.baseURL}/api/user/update-profile`, profileData, {
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },
     });
   }
 
-  static async searchUsers(accessToken: string, baseURL: string, keyword: string, limit = 10, offset = 0, headers = buildHeaders()) {
+  async searchUsers(accessToken: string, keyword: string, limit = 10, offset = 0, headers: Record<string, string>) {
     return ApiClient.createSignedClient(headers).request({
       method: 'GET',
-      url: `${baseURL}/api/user/search`,
+      url: `${this.baseURL}/api/user/search`,
       params: { keyword, limit, offset },
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },
       data: {},

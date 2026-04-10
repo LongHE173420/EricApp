@@ -1,8 +1,5 @@
 import { AuthService, StoredSession, getTokenClientType, isAccessExpired, isRefreshExpired } from '../service/auth/AuthService';
-import { buildHeaders } from '../utils/headers';
-import { UserApiService } from '../api/user/UserApiService';
-import { FeedApiService } from '../api/feed/FeedApiService';
-import { ReactionApiService } from '../api/reaction/ReactionApiService';
+import { UserService } from '../service/user/UserService';
 import { FeedService } from '../service/feed/FeedService';
 import { FriendService } from '../service/friend/FriendService';
 import { MissionService } from '../service/missions/MissionService';
@@ -45,6 +42,7 @@ export class EricAppWorker {
   private session: StoredSession;
 
   private readonly auth: AuthService;
+  private readonly user: UserService;
   private readonly feed: FeedService;
   private readonly friend: FriendService;
   private readonly mission: MissionService;
@@ -57,6 +55,7 @@ export class EricAppWorker {
 
     const { baseUrl, deviceId, userAgent, phone } = this.session;
     this.auth = new AuthService(baseUrl, deviceId, userAgent);
+    this.user = new UserService(baseUrl, deviceId, userAgent);
     this.feed = new FeedService(baseUrl, deviceId, userAgent);
     this.friend = new FriendService(baseUrl, deviceId, userAgent, phone);
     this.mission = new MissionService(baseUrl, deviceId, userAgent);
@@ -172,8 +171,7 @@ export class EricAppWorker {
   
   async removeReaction(postId: string) {
     await this.ensureValidSession();
-    const headers = buildHeaders(this.session.deviceId, this.session.userAgent);
-    await ReactionApiService.removeReaction(this.session.accessToken, this.session.baseUrl, postId, headers);
+    await this.feed.removeReaction(this.session.accessToken, postId);
   }
 
   async repostPost(postId: string) {
@@ -198,31 +196,12 @@ export class EricAppWorker {
 
   async searchUsers(keyword: string) {
     await this.ensureValidSession();
-    const s = this.session;
-    const clientType = getTokenClientType(s.accessToken);
-    const headers = buildHeaders(s.deviceId, s.userAgent, { clientType });
-    
-    console.log('[SearchDebug] Searching for:', keyword);
-    try {
-      const res = await UserApiService.searchUsers(s.accessToken, s.baseUrl, keyword, 10, 0, headers);
-      console.log('[SearchDebug] Response Status:', res.status);
-      console.log('[SearchDebug] Response Data:', JSON.stringify(res.data, null, 2));
-      
-      const results = res?.data?.data || res?.data;
-      return Array.isArray(results) ? results : [];
-    } catch (error: any) {
-      console.log('[SearchDebug] Search Error:', error?.message);
-      return [];
-    }
+    return this.user.searchUsers(this.session.accessToken, keyword);
   }
 
   async getProfileById(userId: string) {
     await this.ensureValidSession();
-    const s = this.session;
-    const clientType = getTokenClientType(s.accessToken);
-    const headers = buildHeaders(s.deviceId, s.userAgent, { clientType });
-    const res = await UserApiService.getProfileById(s.accessToken, s.baseUrl, userId, headers);
-    return res?.data?.data || res?.data;
+    return this.user.getProfileById(this.session.accessToken, userId);
   }
 
   async getProfileContent(userId: string) {

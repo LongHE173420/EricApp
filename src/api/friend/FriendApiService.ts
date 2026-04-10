@@ -28,35 +28,27 @@ const buildOrderedQuery = (entries: Array<[string, string | number | undefined]>
 };
 
 export class FriendApiService {
-  private static baseURL = '';
+  constructor(private readonly baseURL: string, private readonly deviceId: string) {}
 
-  static setBaseUrl(baseURL: string) {
-    this.baseURL = baseURL;
-  }
-
-  private static get urlBase() {
-    return this.baseURL;
-  }
-
-  static async getFollowers(
+  async getFollowers(
     accessToken: string,
     userId: string,
-    headers = buildHeaders(),
+    headers: Record<string, string>,
     limit = 10,
     offset = 0,
     agent?: any,
   ) {
-    return ApiClient.createSignedClient(headers, agent).get(`${this.urlBase}/api/follow/followers/${userId}`, {
+    return ApiClient.createSignedClient(headers, agent).get(`${this.baseURL}/api/follow/followers/${userId}`, {
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },
       params: { limit, offset },
       transformResponse,
     });
   }
 
-  static async getFriendList(
+  async getFriendList(
     accessToken: string,
     userId: string,
-    headers = buildHeaders(),
+    headers: Record<string, string>,
     limit = 10,
     offset = 0,
     agent?: any,
@@ -68,7 +60,7 @@ export class FriendApiService {
       ['userId', userId],
     ]);
 
-    return ApiClient.createSignedClient(headers, agent).get(`${this.urlBase}/api/friend/list${query}`, {
+    return ApiClient.createSignedClient(headers, agent).get(`${this.baseURL}/api/friend/list${query}`, {
       data: {},
       __signatureExcludeQuery: signatureExcludeQuery,
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },
@@ -76,22 +68,22 @@ export class FriendApiService {
     } as any);
   }
 
-  static async getMyFriends(accessToken: string, headers = buildHeaders(), agent?: any) {
-    return ApiClient.createSignedClient(headers, agent).get(`${this.urlBase}/api/friend/myFriends`, {
+  async getMyFriends(accessToken: string, headers: Record<string, string>, agent?: any) {
+    return ApiClient.createSignedClient(headers, agent).get(`${this.baseURL}/api/friend/myFriends`, {
       data: {},
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },
       transformResponse,
     } as any);
   }
 
-  static async sendFriendRequest(
+  async sendFriendRequest(
     accessToken: string,
     receiverId: string | number,
-    headers = buildHeaders(),
+    headers: Record<string, string>,
     agent?: any,
   ) {
     return ApiClient.createSignedClient(headers, agent).post(
-      `${this.urlBase}/api/friend/requests`,
+      `${this.baseURL}/api/friend/requests`,
       ApiClient.buildPayload({ receiverId: String(receiverId) }),
       {
         headers: {
@@ -103,14 +95,14 @@ export class FriendApiService {
     );
   }
 
-  static async acceptFriendRequest(
+  async acceptFriendRequest(
     accessToken: string,
     senderId: string,
-    headers = buildHeaders(),
+    headers: Record<string, string>,
     agent?: any,
   ) {
     return ApiClient.createSignedClient(headers, agent).post(
-      `${this.urlBase}/api/friend/requests/accept`,
+      `${this.baseURL}/api/friend/requests/accept`,
       ApiClient.buildPayload({ senderId }),
       {
         headers: {
@@ -122,9 +114,9 @@ export class FriendApiService {
     );
   }
 
-  static async getSentRequests(
+  async getSentRequests(
     accessToken: string,
-    headers = buildHeaders(),
+    headers: Record<string, string>,
     limit = 10,
     offset = 0,
     agent?: any,
@@ -135,7 +127,7 @@ export class FriendApiService {
       ['limit', limit],
     ]);
 
-    return ApiClient.createSignedClient(headers, agent).get(`${this.urlBase}/api/friend/requests/sent${query}`, {
+    return ApiClient.createSignedClient(headers, agent).get(`${this.baseURL}/api/friend/requests/sent${query}`, {
       data: {},
       __signatureExcludeQuery: signatureExcludeQuery,
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },
@@ -143,42 +135,42 @@ export class FriendApiService {
     } as any);
   }
 
-  static async deleteFriend(
+  async deleteFriend(
     accessToken: string,
     friendId: string,
-    headers = buildHeaders(),
+    headers: Record<string, string>,
     agent?: any,
   ) {
-    return ApiClient.createSignedClient(headers, agent).delete(`${this.urlBase}/api/friend/${friendId}`, {
+    return ApiClient.createSignedClient(headers, agent).delete(`${this.baseURL}/api/friend/${friendId}`, {
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },
     });
   }
 
-  static async cancelFriendRequest(
+  async cancelFriendRequest(
     accessToken: string,
     receiverId: string,
-    headers = buildHeaders(),
+    headers: Record<string, string>,
     agent?: any,
   ) {
-    return ApiClient.createSignedClient(headers, agent).delete(`${this.urlBase}/api/friend/cancel/${receiverId}`, {
+    return ApiClient.createSignedClient(headers, agent).delete(`${this.baseURL}/api/friend/cancel/${receiverId}`, {
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },
     });
   }
 
-  static async rejectFriendRequest(
+  async rejectFriendRequest(
     accessToken: string,
     senderId: string,
-    headers = buildHeaders(),
+    headers: Record<string, string>,
     agent?: any,
   ) {
-    return ApiClient.createSignedClient(headers, agent).delete(`${this.urlBase}/api/friend/reject/${senderId}`, {
+    return ApiClient.createSignedClient(headers, agent).delete(`${this.baseURL}/api/friend/reject/${senderId}`, {
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },
     });
   }
 
-  static async getReceivedRequests(
+  async getReceivedRequests(
     accessToken: string,
-    headers = buildHeaders(),
+    headers: Record<string, string>,
     limit = 10,
     offset = 0,
     agent?: any,
@@ -189,7 +181,7 @@ export class FriendApiService {
       ['limit', limit],
     ]);
 
-    return ApiClient.createSignedClient(headers, agent).get(`${this.urlBase}/api/friend/requests/received${query}`, {
+    return ApiClient.createSignedClient(headers, agent).get(`${this.baseURL}/api/friend/requests/received${query}`, {
       data: {},
       __signatureExcludeQuery: signatureExcludeQuery,
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },

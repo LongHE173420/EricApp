@@ -109,11 +109,15 @@ export class FeedService {
     private readonly userAgent: string,
   ) { }
 
+  private get feedApi() { return new FeedApiService(this.baseUrl, this.deviceId); }
+  private get reactionApi() { return new ReactionApiService(this.baseUrl, this.deviceId); }
+  private get surfApi() { return new SurfApiService(this.baseUrl, this.deviceId); }
+
   private get headers() { return buildHeaders(this.deviceId, this.userAgent); }
 
   async getHomeFeed(accessToken: string, limit = 10): Promise<any[]> {
     try {
-      const res = await FeedApiService.getFeedTimeline(accessToken, this.baseUrl, this.headers, '', false, '', Date.now(), limit);
+      const res = await this.feedApi.getFeedTimeline(accessToken, this.headers, '', false, '', Date.now(), limit);
       debugLogMediaPayload('feed', res, this.baseUrl);
       const raw = res.data?.data ?? res.data;
       return Array.isArray(raw) ? raw : [];
@@ -124,7 +128,7 @@ export class FeedService {
 
   async getProfileFeed(accessToken: string, userId = '', limit = 10, offset = 0): Promise<any[]> {
     try {
-      const res = await FeedApiService.getFeedProfile(accessToken, this.baseUrl, this.headers, userId, limit, offset);
+      const res = await this.feedApi.getFeedProfile(accessToken, this.headers, userId, limit, offset);
       debugLogMediaPayload('feed', res, this.baseUrl);
       const raw = res.data?.data ?? res.data;
       return Array.isArray(raw) ? raw : [];
@@ -135,7 +139,7 @@ export class FeedService {
 
   async getProfileSurf(accessToken: string, userId = '', limit = 10, offset = 0): Promise<any[]> {
     try {
-      const res = await SurfApiService.getSurfProfile(accessToken, this.baseUrl, this.headers, userId, limit, offset);
+      const res = await this.surfApi.getSurfProfile(accessToken, this.headers, userId, limit, offset);
       debugLogMediaPayload('surf', res, this.baseUrl);
       const raw = res.data?.data ?? res.data;
       return Array.isArray(raw) ? raw : [];
@@ -146,7 +150,7 @@ export class FeedService {
 
   async getSurfHome(accessToken: string, limit = 10): Promise<any[]> {
     try {
-      const res = await SurfApiService.getSurfHome(accessToken, this.baseUrl, this.headers, '', Math.floor(Date.now() / 1000), limit);
+      const res = await this.surfApi.getSurfHome(accessToken, this.headers, '', Math.floor(Date.now() / 1000), limit);
       debugLogMediaPayload('surf', res, this.baseUrl);
       const raw = res.data?.data ?? res.data;
       return Array.isArray(raw) ? raw : [];
@@ -157,7 +161,7 @@ export class FeedService {
 
   async getReactionCodes(accessToken: string): Promise<string[]> {
     try {
-      const res = await ReactionApiService.listReactions(accessToken, this.baseUrl, this.headers);
+      const res = await this.reactionApi.listReactions(accessToken, this.headers);
       const raw = res.data?.data ?? res.data;
       if (Array.isArray(raw)) {
         return raw.map((r: any) => r?.code || r?.reactionTypeCode || r?.type || String(r)).filter(Boolean);
@@ -169,10 +173,14 @@ export class FeedService {
   }
 
   async reactToPost(accessToken: string, postId: string, reactionCode = 'LIKE'): Promise<void> {
-    await ReactionApiService.sendReaction(accessToken, this.baseUrl, postId, reactionCode, this.headers);
+    await this.reactionApi.sendReaction(accessToken, postId, reactionCode, this.headers);
+  }
+
+  async removeReaction(accessToken: string, postId: string): Promise<void> {
+    await this.reactionApi.removeReaction(accessToken, postId, this.headers);
   }
 
   async repostPost(accessToken: string, postId: string): Promise<void> {
-    await FeedApiService.repostPost(accessToken, this.baseUrl, postId, this.headers);
+    await this.feedApi.repostPost(accessToken, postId, this.headers);
   }
 }

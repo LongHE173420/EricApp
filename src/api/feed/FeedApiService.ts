@@ -11,51 +11,53 @@ const transformResponse = [(data: any) => {
 }];
 
 export class FeedApiService {
-  static async getFeedTimeline(accessToken: string, baseURL: string, headers = buildHeaders(), userId = '', isProfile = false, postId = '', createdAt = Date.now(), limit = 10) {
+  constructor(private readonly baseURL: string, private readonly deviceId: string) {}
+
+  async getFeedTimeline(accessToken: string, headers: Record<string, string>, userId = '', isProfile = false, postId = '', createdAt = Date.now(), limit = 10) {
     return ApiClient.createSignedClient(headers).post(
-      `${baseURL}/api/feed/home`,
+      `${this.baseURL}/api/feed/home`,
       ApiClient.buildPayload({ userId, isProfile, postId, createdAt, limit }),
       { headers: { ...headers, Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }, transformResponse },
     );
   }
 
-  static async getFeedProfile(accessToken: string, baseURL: string, headers = buildHeaders(), userId = '', limit = 10, offset = 0) {
+  async getFeedProfile(accessToken: string, headers: Record<string, string>, userId = '', limit = 10, offset = 0) {
     const params: any = { limit, offset };
     if (userId) params.userId = userId;
 
-    return ApiClient.createSignedClient(headers).get(`${baseURL}/api/feed/profile`, {
+    return ApiClient.createSignedClient(headers).get(`${this.baseURL}/api/feed/profile`, {
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },
       params,
       transformResponse,
     });
   }
 
-  static async createPost(accessToken: string, baseURL: string, postData: any, headers = buildHeaders()) {
+  async createPost(accessToken: string, postData: any, headers: Record<string, string>) {
     return ApiClient.createSignedClient(headers).post(
-      `${baseURL}/api/posts/create`,
+      `${this.baseURL}/api/posts/create`,
       ApiClient.buildPayload(postData),
       { headers: { ...headers, Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } },
     );
   }
 
-  static async repostPost(accessToken: string, baseURL: string, id: string | number, headers = buildHeaders()) {
+  async repostPost(accessToken: string, id: string | number, headers: Record<string, string>) {
     return ApiClient.createSignedClient(headers).post(
-      `${baseURL}/api/posts/repost`,
+      `${this.baseURL}/api/posts/repost`,
       ApiClient.buildPayload({ id: String(id) }),
       { headers: { ...headers, Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } },
     );
   }
 
-  static async deletePost(accessToken: string, baseURL: string, postId: string | number, headers = buildHeaders()) {
+  async deletePost(accessToken: string, postId: string | number, headers: Record<string, string>) {
     return ApiClient.createSignedClient(headers).post(
-      `${baseURL}/api/posts/delete`,
+      `${this.baseURL}/api/posts/delete`,
       ApiClient.buildPayload({ id: String(postId) }),
       { headers: { ...headers, Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } },
     );
   }
 
-  static async getFeedBackgroundColor(accessToken: string, baseURL: string, headers = buildHeaders()) {
-    return ApiClient.createSignedClient(headers).get(`${baseURL}/api/feed/background-color`, {
+  async getFeedBackgroundColor(accessToken: string, headers: Record<string, string>) {
+    return ApiClient.createSignedClient(headers).get(`${this.baseURL}/api/feed/background-color`, {
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },
     });
   }

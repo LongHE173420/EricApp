@@ -106,6 +106,10 @@ export class AuthService {
     return new AuthApiService(this.baseUrl, this.deviceId);
   }
 
+  private get userApi() {
+    return new UserApiService(this.baseUrl, this.deviceId);
+  }
+
   private get headers() {
     return buildHeaders(this.deviceId, this.userAgent);
   }
@@ -262,8 +266,7 @@ export class AuthService {
   }
 
   async getMe(session: StoredSession): Promise<any> {
-    const h = buildHeaders(this.deviceId, this.userAgent);
-    const res = await UserApiService.getProfileMe(session.accessToken, this.baseUrl, h);
+    const res = await this.userApi.getProfileMe(session.accessToken, this.headers);
     const d = res.data;
     if (d?.isSucceed && d?.data) return d.data;
     if (d?.data?.id || d?.data?.userName) return d.data;

@@ -11,38 +11,40 @@ const transformResponse = [(data: any) => {
 }];
 
 export class SurfApiService {
-  static async getSurfHome(accessToken: string, baseURL: string, headers = buildHeaders(), surfId = '', createdAt = Math.floor(Date.now() / 1000), limit = 10) {
+  constructor(private readonly baseURL: string, private readonly deviceId: string) {}
+
+  async getSurfHome(accessToken: string, headers: Record<string, string>, surfId = '', createdAt = Math.floor(Date.now() / 1000), limit = 10) {
     return ApiClient.createSignedClient(headers).post(
-      `${baseURL}/api/surf/home`,
+      `${this.baseURL}/api/surf/home`,
       ApiClient.buildPayload({ surfId, createdAt, limit }),
       { headers: { ...headers, Authorization: `Bearer ${accessToken}` }, transformResponse },
     );
   }
 
-  static async generateSurfId(accessToken: string, baseURL: string, headers = buildHeaders()) {
-    return ApiClient.createSignedClient(headers).post(`${baseURL}/api/surf/generate-id`, '', {
+  async generateSurfId(accessToken: string, headers: Record<string, string>) {
+    return ApiClient.createSignedClient(headers).post(`${this.baseURL}/api/surf/generate-id`, '', {
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },
     });
   }
 
-  static async createSurf(accessToken: string, baseURL: string, surfData: any, headers = buildHeaders()) {
+  async createSurf(accessToken: string, surfData: any, headers: Record<string, string>) {
     return ApiClient.createSignedClient(headers).post(
-      `${baseURL}/api/surf/create`,
+      `${this.baseURL}/api/surf/create`,
       ApiClient.buildPayload(surfData),
       { headers: { ...headers, Authorization: `Bearer ${accessToken}` } },
     );
   }
 
-  static async completeSurf(accessToken: string, baseURL: string, surfData: any, headers = buildHeaders()) {
+  async completeSurf(accessToken: string, surfData: any, headers: Record<string, string>) {
     return ApiClient.createSignedClient(headers).post(
-      `${baseURL}/api/surf/complete`,
+      `${this.baseURL}/api/surf/complete`,
       ApiClient.buildPayload(surfData),
       { headers: { ...headers, Authorization: `Bearer ${accessToken}` } },
     );
   }
 
-  static async getSurfProfile(accessToken: string, baseURL: string, headers = buildHeaders(), userId = '', limit = 10, offset = 0) {
-    return ApiClient.createSignedClient(headers).get(`${baseURL}/api/surf/profile`, {
+  async getSurfProfile(accessToken: string, headers: Record<string, string>, userId = '', limit = 10, offset = 0) {
+    return ApiClient.createSignedClient(headers).get(`${this.baseURL}/api/surf/profile`, {
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },
       params: { userId, limit, offset },
       transformResponse,

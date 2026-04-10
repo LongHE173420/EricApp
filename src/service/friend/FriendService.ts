@@ -15,12 +15,15 @@ type FriendTokenContext = {
 
 export class FriendService {
   constructor(
-    baseUrl: string,
+    private readonly baseUrl: string,
     private readonly deviceId: string,
     private readonly userAgent: string,
     private readonly currentPhone?: string,
   ) {
-    FriendApiService.setBaseUrl(baseUrl);
+  }
+
+  private get friendApi() {
+    return new FriendApiService(this.baseUrl, this.deviceId);
   }
 
 
@@ -195,7 +198,7 @@ export class FriendService {
   async getMyFriends(accessToken: string, me?: any): Promise<any[]> {
     try {
       const res = await this.requestWithFriendReadFallback(this.buildNonPaginatedReadVariants(accessToken), variant =>
-        FriendApiService.getMyFriends(accessToken, variant.headers),
+        this.friendApi.getMyFriends(accessToken, variant.headers),
       );
       return this.extractList(res.data);
     } catch (e: any) {
@@ -205,7 +208,7 @@ export class FriendService {
       if (userId) {
         try {
           const res = await this.requestWithFriendReadFallback(this.buildPaginatedReadVariants(accessToken), variant =>
-            FriendApiService.getFriendList(accessToken, userId, variant.headers, 20, 0, undefined, variant.signatureExcludeQuery),
+            this.friendApi.getFriendList(accessToken, userId, variant.headers, 20, 0, undefined, variant.signatureExcludeQuery),
           );
           return this.extractList(res.data);
         } catch (e2: any) {
@@ -220,7 +223,7 @@ export class FriendService {
   async getReceivedRequests(accessToken: string): Promise<any[]> {
     try {
       const res = await this.requestWithFriendReadFallback(this.buildPaginatedReadVariants(accessToken), variant =>
-        FriendApiService.getReceivedRequests(accessToken, variant.headers, 20, 0, undefined, variant.signatureExcludeQuery),
+        this.friendApi.getReceivedRequests(accessToken, variant.headers, 20, 0, undefined, variant.signatureExcludeQuery),
       );
       return this.extractList(res.data);
     } catch (e: any) {
@@ -233,7 +236,7 @@ export class FriendService {
   async getSentRequests(accessToken: string): Promise<any[]> {
     try {
       const res = await this.requestWithFriendReadFallback(this.buildPaginatedReadVariants(accessToken), variant =>
-        FriendApiService.getSentRequests(accessToken, variant.headers, 20, 0, undefined, variant.signatureExcludeQuery),
+        this.friendApi.getSentRequests(accessToken, variant.headers, 20, 0, undefined, variant.signatureExcludeQuery),
       );
       return this.extractList(res.data);
     } catch {
@@ -243,7 +246,7 @@ export class FriendService {
 
   async acceptRequest(accessToken: string, senderId: string): Promise<void> {
     const tokenContext = this.decodeTokenContext(accessToken);
-    await FriendApiService.acceptFriendRequest(
+    await this.friendApi.acceptFriendRequest(
       accessToken,
       senderId,
       this.buildHeadersForVariant(tokenContext.deviceId, tokenContext.clientType, 'minimal'),
@@ -252,7 +255,7 @@ export class FriendService {
 
   async rejectRequest(accessToken: string, senderId: string): Promise<void> {
     const tokenContext = this.decodeTokenContext(accessToken);
-    await FriendApiService.rejectFriendRequest(
+    await this.friendApi.rejectFriendRequest(
       accessToken,
       senderId,
       this.buildHeadersForVariant(tokenContext.deviceId, tokenContext.clientType, 'minimal'),
@@ -261,7 +264,7 @@ export class FriendService {
 
   async sendRequest(accessToken: string, receiverId: string | number): Promise<void> {
     const tokenContext = this.decodeTokenContext(accessToken);
-    await FriendApiService.sendFriendRequest(
+    await this.friendApi.sendFriendRequest(
       accessToken,
       receiverId,
       this.buildHeadersForVariant(tokenContext.deviceId, tokenContext.clientType, 'minimal'),
@@ -270,7 +273,7 @@ export class FriendService {
 
   async cancelRequest(accessToken: string, receiverId: string | number): Promise<void> {
     const tokenContext = this.decodeTokenContext(accessToken);
-    await FriendApiService.cancelFriendRequest(
+    await this.friendApi.cancelFriendRequest(
       accessToken,
       String(receiverId),
       this.buildHeadersForVariant(tokenContext.deviceId, tokenContext.clientType, 'minimal'),
@@ -279,7 +282,7 @@ export class FriendService {
 
   async deleteFriend(accessToken: string, friendId: string): Promise<void> {
     const tokenContext = this.decodeTokenContext(accessToken);
-    await FriendApiService.deleteFriend(
+    await this.friendApi.deleteFriend(
       accessToken,
       friendId,
       this.buildHeadersForVariant(tokenContext.deviceId, tokenContext.clientType, 'minimal'),

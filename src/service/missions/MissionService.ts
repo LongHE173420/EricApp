@@ -41,17 +41,26 @@ export type PointBalance = {
 };
 
 export class MissionService {
+  private _missionApi?: MissionApiService;
+
   constructor(
     private readonly baseUrl: string,
     private readonly deviceId: string,
     private readonly userAgent: string,
   ) {}
 
+  private get missionApi(): MissionApiService {
+    if (!this._missionApi) {
+      this._missionApi = new MissionApiService(this.baseUrl, this.deviceId);
+    }
+    return this._missionApi;
+  }
+
   private get headers() { return buildHeaders(this.deviceId, this.userAgent); }
 
   async getMissions(accessToken: string): Promise<any[]> {
     try {
-      const res = await MissionApiService.getCurrentUserMissions(accessToken, this.baseUrl, this.headers);
+      const res = await this.missionApi.getCurrentUserMissions(accessToken, this.headers);
       return res.data?.data || res.data || [];
     } catch {
       return [];
@@ -60,7 +69,7 @@ export class MissionService {
 
   async getPointBalance(accessToken: string): Promise<PointBalance | null> {
     try {
-      const res = await MissionApiService.getPointBalance(accessToken, this.baseUrl, this.headers);
+      const res = await this.missionApi.getPointBalance(accessToken, this.headers);
       const d = res.data?.data || res.data;
       if (!d) return null;
       const earned = d?.dailyEarnedPoint ?? 0;
@@ -99,7 +108,7 @@ export class MissionService {
 
   async claimStreak(accessToken: string, missionId: number, currentValue: number): Promise<boolean> {
     try {
-      await MissionApiService.claimStreakMissionReward(accessToken, this.baseUrl, missionId, currentValue, this.headers);
+      await this.missionApi.claimStreakMissionReward(accessToken, missionId, currentValue, this.headers);
       return true;
     } catch {
       return false;
@@ -108,7 +117,7 @@ export class MissionService {
 
   async claimMission(accessToken: string, missionId: number): Promise<boolean> {
     try {
-      await MissionApiService.claimMissionReward(accessToken, this.baseUrl, missionId, this.headers);
+      await this.missionApi.claimMissionReward(accessToken, missionId, this.headers);
       return true;
     } catch {
       return false;

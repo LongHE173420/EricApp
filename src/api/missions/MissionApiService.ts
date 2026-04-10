@@ -2,30 +2,32 @@ import { ApiClient } from '../../utils/ApiClient';
 import { buildHeaders } from '../../utils/headers';
 
 export class MissionApiService {
-  static async getCurrentUserMissions(accessToken: string, baseURL: string, headers = buildHeaders()) {
-    return ApiClient.createSignedClient(headers).get(`${baseURL}/api/missions/current-user`, {
+  constructor(private readonly baseURL: string, private readonly deviceId: string) {}
+
+  async getCurrentUserMissions(accessToken: string, headers: Record<string, string>) {
+    return ApiClient.createSignedClient(headers).get(`${this.baseURL}/api/missions/current-user`, {
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },
     });
   }
 
-  static async claimMissionReward(accessToken: string, baseURL: string, missionId: number, headers = buildHeaders()) {
+  async claimMissionReward(accessToken: string, missionId: number, headers: Record<string, string>) {
     return ApiClient.createSignedClient(headers).post(
-      `${baseURL}/api/point/claim-mission-reward`,
+      `${this.baseURL}/api/point/claim-mission-reward`,
       { missionId },
       { headers: { ...headers, Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } },
     );
   }
 
-  static async claimStreakMissionReward(accessToken: string, baseURL: string, missionId: number, currentValue: number, headers = buildHeaders()) {
+  async claimStreakMissionReward(accessToken: string, missionId: number, currentValue: number, headers: Record<string, string>) {
     return ApiClient.createSignedClient(headers).post(
-      `${baseURL}/api/point/claim-streak-mission-reward`,
+      `${this.baseURL}/api/point/claim-streak-mission-reward`,
       { missionId, currentValue },
       { headers: { ...headers, Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' } },
     );
   }
 
-  static async getPointBalance(accessToken: string, baseURL: string, headers = buildHeaders()) {
-    return ApiClient.createSignedClient(headers).get(`${baseURL}/api/point/balance`, {
+  async getPointBalance(accessToken: string, headers: Record<string, string>) {
+    return ApiClient.createSignedClient(headers).get(`${this.baseURL}/api/point/balance`, {
       headers: { ...headers, Authorization: `Bearer ${accessToken}` },
     });
   }
